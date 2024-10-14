@@ -4,7 +4,7 @@ from django.shortcuts import render
 from .models import *
 from django.http import JsonResponse
 from django.db.models import Count, Max
-from collections import Counter
+from collections import Counter, defaultdict
 import jieba
 from snownlp import SnowNLP
 
@@ -185,3 +185,79 @@ def get_articles_with_comments(request):
         'num_pages': paginator.num_pages,
         'current_page': paginated_articles.number
     })
+
+
+def article_analysis(request):
+    # 查询所有文章的类型并去重
+    article_types = Article.objects.values_list('type', flat=True).distinct()
+    selected_type = request.GET.get('type', None)
+
+    # 查询筛选后的文章
+    if selected_type:
+        articles = Article.objects.filter(type=selected_type)
+    else:
+        articles = Article.objects.all()
+
+    # 定义统计区间
+    like_intervals = [(1000, 2000), (2000, 3000), (3000, 5000), (5000, 10000), (10000, float('inf'))]
+    comment_intervals = [(0, 1000), (1000, 2000), (2000, 3000), (3000, 5000), (5000, float('inf'))]
+    repost_intervals = [(0, 1000), (1000, 2000), (2000, 3000), (3000, 5000), (5000, float('inf'))]
+
+    # 统计点赞量、评论量、转发量
+    def get_interval_count(articles, field, intervals):
+        interval_count = defaultdict(int)
+        for article in articles:
+            value = getattr(article, field)
+            for start, end in intervals:
+                if start <= value < end:
+                    interval_count[f"{start}-{end}"] += 1
+                    break
+        return interval_count
+
+    like_counts = get_interval_count(articles, 'likenum', like_intervals)
+    comment_counts = get_interval_count(articles, 'commentnum', comment_intervals)
+    repost_counts = get_interval_count(articles, 'reposts_count', repost_intervals)
+
+    # 返回类型列表
+    return JsonResponse({'types': list(article_types),
+                         'like_counts': like_counts,
+                         'comment_counts': comment_counts,
+                         'repost_counts': repost_counts})
+
+
+def region_analysis(request):
+    # 统计每个地区的文章数
+    article_counts = (
+        Article.objects.values('region')  # 以地区分组
+        .annotate(article_count=Count('id'))  # 统计每个地区的文章数
+        .order_by('region')  # 排序
+    )
+
+    # 统计每个地区的评论数
+    comment_counts = (
+        Comments.objects.values('region')  # 以地区分组
+        .annotate(comment_count=Count('articleid'))  # 统计每个地区的评论数
+        .order_by('region')  # 排序
+    )
+
+    # 将结果组合成一个列表，以便返回给前端
+    article_data_list = [
+        {'region': item['region'], 'article_count': item['article_count']}
+        for item in article_counts
+    ]
+
+    comment_data_list = [
+        {'region': item['region'], 'comment_count': item['comment_count']}
+        for item in comment_counts
+    ]
+
+    # 返回给前端的 JSON 数据
+    return JsonResponse({
+        'articleDataList': article_data_list,
+        'commentDataList': comment_data_list
+    })
+
+
+
+
+

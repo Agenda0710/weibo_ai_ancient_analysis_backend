@@ -25,5 +25,9 @@ urlpatterns = [
     # 获取热词数据
     path('hotWords/', views.get_hot_words_statistics, name='get_hot_words_statistics'),
     # 获取第三页（微博舆情统计)
-    path('articles/', views.get_articles_with_comments, name='articles_list')
+    path('articles/', views.get_articles_with_comments, name='articles_list'),
+    # 获取第四页（文章分析）
+    path('articleAnalysis/', views.article_analysis, name='article_analysis'),
+    # 获取第五页数据（IP分析）
+    path('regionAnalysis/',views.region_analysis,name='region_analysis')
 ]
