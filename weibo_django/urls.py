@@ -29,5 +29,7 @@ urlpatterns = [
     # 获取第四页（文章分析）
     path('articleAnalysis/', views.article_analysis, name='article_analysis'),
     # 获取第五页数据（IP分析）
-    path('regionAnalysis/',views.region_analysis,name='region_analysis')
+    path('regionAnalysis/', views.region_analysis, name='region_analysis'),
+    # 获取第六页数据（评论分析）
+    path('commentsAnalysis/', views.comments_analysis, name='comments_analysis')
 ]

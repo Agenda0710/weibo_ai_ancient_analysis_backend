@@ -199,7 +199,7 @@ def article_analysis(request):
         articles = Article.objects.all()
 
     # 定义统计区间
-    like_intervals = [(1000, 2000), (2000, 3000), (3000, 5000), (5000, 10000), (10000, float('inf'))]
+    like_intervals = [(0, 1000), (1000, 2000), (2000, 3000), (3000, 5000), (5000, 10000), (10000, float('inf'))]
     comment_intervals = [(0, 1000), (1000, 2000), (2000, 3000), (3000, 5000), (5000, float('inf'))]
     repost_intervals = [(0, 1000), (1000, 2000), (2000, 3000), (3000, 5000), (5000, float('inf'))]
 
@@ -258,6 +258,41 @@ def region_analysis(request):
     })
 
 
+def comments_analysis(request):
+    # 定义点赞数区间为每 20 个一组
+    interval = 20
 
+    # 统计每个区间的评论数
+    like_bins = Comments.objects.values('like_counts').annotate(count=Count('id'))
 
+    # 整理数据到区间中
+    bins = {}
+    for item in like_bins:
+        like_count = item['like_counts'] if item['like_counts'] is not None else 0
+        bin_index = (like_count // interval) * interval
+        if bin_index in bins:
+            bins[bin_index] += item['count']
+        else:
+            bins[bin_index] = item['count']
 
+    # 构建前端需要的数据格式
+    response_data = []
+    for bin_start, count in sorted(bins.items()):
+        response_data.append({
+            'like_range': f"{bin_start}-{bin_start + interval}",
+            'comment_count': count
+        })
+
+    # 性别数据
+    gender_counts = Comments.objects.values_list('authorgender', flat=True)
+    gender_counter = Counter(gender_counts)
+
+    # 获取词频数据
+    word_frequencies = WordFrequency.objects.all().values('word', 'frequency')
+    word_data = [{'name': wf['word'], 'value': wf['frequency']} for wf in word_frequencies]
+
+    return JsonResponse({
+        'data': response_data,
+        'gender_data': [{'name': gender, 'value': count} for gender, count in gender_counter.items()],
+        'word_data': word_data
+    })
