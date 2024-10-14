@@ -139,3 +139,49 @@ def get_hot_words_statistics(request):
                          'pageSize': paginator.per_page,
                          'allComments': comments_list
                          })
+
+
+def get_articles_with_comments(request):
+    # 获取分页参数
+    page = request.GET.get('page', 1)  # 默认为第一页
+    page_size = request.GET.get('page_size', 6)  # 默认为每页6条数据
+
+    # 获取所有文章并计算评论量
+    articles = Article.objects.annotate(comment_count=Count('comments'))
+
+    # 使用Paginator进行分页
+    paginator = Paginator(articles, page_size)
+    paginated_articles = paginator.get_page(page)
+
+    # 创建一个结果列表，包含文章信息和评论量
+    results = []
+    for article in paginated_articles:
+        # 使用 SnowNLP 进行情感分析
+        s = SnowNLP(article.content)
+        if s.sentiments > 0.5:
+            sentiment = "正面"
+        elif s.sentiments == 0.5:
+            sentiment = "中性"
+        else:
+            sentiment = "负面"
+
+        results.append({
+            'articleId': article.id,
+            'region': article.region,
+            'reposts_count': article.reposts_count,
+            'comment_count': article.comment_count,  # 评论量
+            'like_count': article.likenum,
+            'type': article.type,
+            'content': article.content,
+            'create_at': article.create_at,
+            'detailUrl': article.detailurl,  # 文章详情页
+            'judge': sentiment,  # 情感分类
+        })
+
+    # 返回分页结果和总条数
+    return JsonResponse({
+        'data': results,
+        'total': paginator.count,
+        'num_pages': paginator.num_pages,
+        'current_page': paginated_articles.number
+    })

@@ -20,7 +20,7 @@ try:
     public_sentiment_old = pd.read_sql_table('public_sentiment', con=engine)
     # 基于 'word', 'comment' 列去除重复行，保留最后出现的重复行
     word_frequency_new = pd.concat([word_frequency_old, cipingTotalFile]).drop_duplicates(subset='word', keep='last')
-    public_sentiment_new = pd.concat([word_frequency_old, yuqingFile]).drop_duplicates(subset='comment', keep='last')
+    public_sentiment_new = pd.concat([public_sentiment_old, yuqingFile]).drop_duplicates(subset='comment', keep='last')
     # 将处理后的数据写回数据库
     word_frequency_new.to_sql('word_frequency', con=engine, if_exists='replace', index=False)
     public_sentiment_new.to_sql('public_sentiment', con=engine, if_exists='replace', index=False)
