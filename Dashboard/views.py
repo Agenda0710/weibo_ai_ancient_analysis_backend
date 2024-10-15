@@ -3,10 +3,12 @@ from django.db.models.functions import Cast
 from django.shortcuts import render
 from .models import *
 from django.http import JsonResponse
+import requests
 from django.db.models import Count, Max
 from collections import Counter, defaultdict
 import jieba
 from snownlp import SnowNLP
+from Dashboard.utils.sentimentAnalysis import *
 
 
 # Create your views here.
@@ -295,4 +297,109 @@ def comments_analysis(request):
         'data': response_data,
         'gender_data': [{'name': gender, 'value': count} for gender, count in gender_counter.items()],
         'word_data': word_data
+    })
+
+
+def sentiment_analysis(request):
+    # 获取所有文章内容和评论内容
+    articles = Article.objects.all().values_list('content', flat=True)
+    comments = Comments.objects.all().values_list('content', flat=True)
+
+    stopwords = load_stopwords()
+
+    # 1. 获取文章热词分析（前十个词以及它们的频率）
+    top_keywords = get_top_keywords(articles, stopwords)
+
+    # 2. 统计文章内容的情感
+    article_sentiment = analyze_sentiment(articles)
+
+    # 3. 统计文章和评论内容的情感
+    comment_sentiment = analyze_sentiment(comments)
+
+    # 4.统计热词的情感
+    all_words = []
+    for content in articles:
+        # 使用jieba进行分词
+        words = jieba.cut(content)
+        # 过滤掉停用词和单个字的词
+        filtered_words = [word for word in words if
+                          word not in stopwords and len(word) > 1 and re.match(r'^[\u4e00-\u9fa5]+$', word)]
+        all_words.extend(filtered_words)
+
+    keywords_sentiment = analyze_sentiment(all_words)
+
+    # 返回结果
+    return JsonResponse({
+        'top_keywords': top_keywords,
+        'article_sentiment': article_sentiment,
+        'comment_sentiment': comment_sentiment,
+        'keywords_sentiment': keywords_sentiment
+    })
+
+
+def article_content_word_cloud(request):
+    stopwords = load_stopwords()
+
+    # 获取文章内容 (假设文章存在数据库中)
+    articles = Article.objects.values_list('content', flat=True)
+    full_text = ' '.join(articles)  # 将所有文章合并为一个字符串
+
+    # 使用jieba进行分词
+    words = jieba.lcut(full_text)
+
+    # 只保留中文词语，并去掉停用词
+    filtered_words = [word for word in words if word not in stopwords and len(word) > 1 and word.isalpha() and all(
+        '\u4e00' <= char <= '\u9fff' for char in word)]
+
+    # 统计词频
+    word_freq = Counter(filtered_words).most_common(100)  # 取前100个词语
+
+    # 返回词语和词频数据
+    return JsonResponse({'word_cloud': word_freq})
+
+
+def get_hot_search_data(request):
+    # 获取请求中的分页参数
+    page = int(request.GET.get('page', 1))
+    page_size = int(request.GET.get('page_size', 10))
+
+    url = 'https://weibo.com/ajax/statuses/mineBand'
+    headers = {
+        'Cookie': 'SINAGLOBAL=1984169755402.2407.1630424811319; SCF=AnamYq1gZv9LGPDy7XY42aNFXwRyLUhVSKbNMdmglCAKxYm16jLRNZI7OcctnpFCCXqbiCdLISYkdImnKYxvk6I.; WBPSESS=tBnnI-QNHYIH4eVw5OhdtioMLcDqMwhNG_1HxdYfBbe9i6eO82u54wwcJr8D8MOnsaLoGqsVXy6vwKsj2mIZzd-UAmI7T_vqc1YHRl2Bdmp_M8tZdv4HGIKRwOVc9d1N_-38koOLeOCm84dGbLOOzA==; ULV=1728978218115:2:2:2:4342820146727.9526.1728978218077:1728390722842; ALF=1731572878; SUB=_2A25KClfcDeRhGeNG7VsV8SbFwz2IHXVpZtUUrDV8PUJbkNAGLUrMkW1NSzm19AyWoBzzmfJy2e6MweeaUz79tXIk; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhrU4fuzK4QyW-e0q8Y2ddg5JpX5KMhUgL.Fo-RSo.XeKn41h22dJLoIXnLxKBLBonL122LxKqLBo-LBoMLxK-LBKBLBKMLxK-LB-BLBKqLxKML1KBL1-qLxKqL1heLBoeLxK.L1h2L1-zLxKML12zL1KMt; PC_TOKEN=5a03a8b4ee; XSRF-TOKEN=Cn-jVsw3EAcNXZKoZJPAxZ2T',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0',
+    }
+    response = requests.get(url, headers=headers)
+    hot_search_list = []
+
+    if response.status_code == 200:
+        for item in response.json()['data']['realtime']:
+            word = item.get('word')  # 使用 get 方法来安全获取字段
+            description = item.get('description', '无描述')  # 如果没有 description，默认显示 '无描述'
+            s = SnowNLP(word)
+            sentiment_score = s.sentiments  # 获取情感得分，范围为0到1
+            if sentiment_score > 0.51:
+                sentiment = '正面'
+            elif sentiment_score < 0.50:
+                sentiment = '负面'
+            elif 0.50 < sentiment_score < 0.51:
+                sentiment = '中性'
+            hot_search_list.append({'content': word, 'sentiment': sentiment, 'description': description})
+
+    # 分页处理
+    paginator = Paginator(hot_search_list, page_size)
+    current_page_data = paginator.get_page(page)
+
+    # 统计情感数量
+    sentiment_count = {
+        '正面': sum(1 for item in hot_search_list if item['sentiment'] == '正面'),
+        '中性': sum(1 for item in hot_search_list if item['sentiment'] == '中性'),
+        '负面': sum(1 for item in hot_search_list if item['sentiment'] == '负面')
+    }
+
+    return JsonResponse({
+        'total': paginator.count,  # 数据总数
+        'page': page,
+        'page_size': page_size,
+        'hot_search_data': list(current_page_data),  # 当前页的数据
+        'sentiment_count': sentiment_count,  # 情感统计数量
     })

@@ -31,5 +31,11 @@ urlpatterns = [
     # 获取第五页数据（IP分析）
     path('regionAnalysis/', views.region_analysis, name='region_analysis'),
     # 获取第六页数据（评论分析）
-    path('commentsAnalysis/', views.comments_analysis, name='comments_analysis')
+    path('commentsAnalysis/', views.comments_analysis, name='comments_analysis'),
+    # 获取第七页数据（舆情分析）
+    path('sentimentAnalysis/', views.sentiment_analysis, name='sentiment_analysis'),
+    # 获取第八页数据（词云图）
+    path('articleContentWordCloud/', views.article_content_word_cloud, name='article_content_word_cloud'),
+    # 获取第九页数据
+    path('getHotSearchData/', views.get_hot_search_data, name='get_hot_search_data'),
 ]
