@@ -62,15 +62,6 @@ class DjangoSession(models.Model):
         db_table = 'django_session'
 
 
-class PublicSentiment(models.Model):
-    comment = models.TextField(blank=True, null=True)
-    judge = models.TextField(blank=True, null=True)
-
-    class Meta:
-        managed = False
-        db_table = 'public_sentiment'
-
-
 class WordFrequency(models.Model):
     word = models.TextField(blank=True, null=True)
     frequency = models.BigIntegerField(blank=True, null=True)

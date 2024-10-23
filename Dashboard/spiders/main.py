@@ -1,10 +1,21 @@
 from spiderComment import start as spiderCommentStart
 from spiderContent import start as spiderContentStart
-import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 import pandas as pd
 
 engine = create_engine('mysql+pymysql://root:xusong986514@127.0.0.1/weibo?charset=utf8mb4')
+
+
+def alter_tables():
+    with engine.connect() as conn:
+        # 设置 article.id 为主键，如果已经是主键可以忽略此行
+        conn.execute(text('ALTER TABLE article MODIFY COLUMN id BIGINT NOT NULL PRIMARY KEY;'))
+
+        # 给 comments 表增加 id 列（自增且为主键），如果已经存在则忽略添加
+        try:
+            conn.execute(text('ALTER TABLE comments ADD COLUMN id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;'))
+        except Exception as e:
+            print(f"修改 comments 表时出现错误：{e}")
 
 
 def save_to_sql():
@@ -47,15 +58,18 @@ def save_to_sql():
         commentNewPd.to_sql('comments', con=engine, if_exists='replace', index=False)
 
 
-
 def main():
     print('正在爬取文章数据')
-    spiderContentStart(typeNum=3,pageNum=2)
+    spiderContentStart(typeNum=3, pageNum=2)
     print('正在爬取评论数据')
     spiderCommentStart()
     print('正在存储数据')
     save_to_sql()
+    # 修改表结构
+    print('正在修改表结构')
+    alter_tables()
 
 
 if __name__ == '__main__':
-    main()
+    save_to_sql()
+    alter_tables()

@@ -89,7 +89,6 @@ def get_article_statistics(request):
 
 
 def get_hot_words_statistics(request):
-    # 获取所有词频数据
     word_frequency_data = WordFrequency.objects.all()
 
     # 处理词频数据并进行情感分析
