@@ -38,4 +38,6 @@ urlpatterns = [
     path('articleContentWordCloud/', views.article_content_word_cloud, name='article_content_word_cloud'),
     # 获取第九页数据
     path('getHotSearchData/', views.get_hot_search_data, name='get_hot_search_data'),
+    # 获取第十页数据（央视新闻）
+    path('getCurrentNews/', views.get_current_news, name='get_current_news'),
 ]

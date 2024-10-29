@@ -9,6 +9,7 @@ from collections import Counter, defaultdict
 import jieba
 from snownlp import SnowNLP
 from Dashboard.utils.sentimentAnalysis import *
+from Dashboard.spiders.spiderNews import *
 
 
 # Create your views here.
@@ -364,7 +365,7 @@ def get_hot_search_data(request):
 
     url = 'https://weibo.com/ajax/statuses/mineBand'
     headers = {
-        'Cookie': 'SINAGLOBAL=1984169755402.2407.1630424811319; SCF=AnamYq1gZv9LGPDy7XY42aNFXwRyLUhVSKbNMdmglCAKxYm16jLRNZI7OcctnpFCCXqbiCdLISYkdImnKYxvk6I.; WBPSESS=tBnnI-QNHYIH4eVw5OhdtioMLcDqMwhNG_1HxdYfBbe9i6eO82u54wwcJr8D8MOnsaLoGqsVXy6vwKsj2mIZzd-UAmI7T_vqc1YHRl2Bdmp_M8tZdv4HGIKRwOVc9d1N_-38koOLeOCm84dGbLOOzA==; ULV=1728978218115:2:2:2:4342820146727.9526.1728978218077:1728390722842; ALF=1731572878; SUB=_2A25KClfcDeRhGeNG7VsV8SbFwz2IHXVpZtUUrDV8PUJbkNAGLUrMkW1NSzm19AyWoBzzmfJy2e6MweeaUz79tXIk; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhrU4fuzK4QyW-e0q8Y2ddg5JpX5KMhUgL.Fo-RSo.XeKn41h22dJLoIXnLxKBLBonL122LxKqLBo-LBoMLxK-LBKBLBKMLxK-LB-BLBKqLxKML1KBL1-qLxKqL1heLBoeLxK.L1h2L1-zLxKML12zL1KMt; PC_TOKEN=5a03a8b4ee; XSRF-TOKEN=Cn-jVsw3EAcNXZKoZJPAxZ2T',
+        'Cookie': 'SINAGLOBAL=1984169755402.2407.1630424811319; SCF=AnamYq1gZv9LGPDy7XY42aNFXwRyLUhVSKbNMdmglCAKxYm16jLRNZI7OcctnpFCCXqbiCdLISYkdImnKYxvk6I.; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhrU4fuzK4QyW-e0q8Y2ddg5JpX5KMhUgL.Fo-RSo.XeKn41h22dJLoIXnLxKBLBonL122LxKqLBo-LBoMLxK-LBKBLBKMLxK-LB-BLBKqLxKML1KBL1-qLxKqL1heLBoeLxK.L1h2L1-zLxKML12zL1KMt; ULV=1728987101315:3:3:3:2107928655288.8154.1728987101282:1728978218115; ALF=1732263341; SUB=_2A25KHMD9DeRhGeNG7VsV8SbFwz2IHXVpUFw1rDV8PUJbkNB-LRGmkW1NSzm19G_jUr2R3jWDrBpNiDMatn1R0mX3; PC_TOKEN=0e2fbae3e8; XSRF-TOKEN=_BWRNOFkUUHSIaMF8O8eqorl; WBStorage=fcc86192|undefined; WBPSESS=tBnnI-QNHYIH4eVw5OhdtioMLcDqMwhNG_1HxdYfBbe9i6eO82u54wwcJr8D8MOnTf98wCBfkfPFtRRN_qqGiXZ0eZuMoTEiE97Oiu4F3oTPrr5WyBwI5r70r_3ubPNN8hL_eqAR3_G2SxA7vICg6Q==',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0',
     }
     response = requests.get(url, headers=headers)
@@ -402,3 +403,11 @@ def get_hot_search_data(request):
         'hot_search_data': list(current_page_data),  # 当前页的数据
         'sentiment_count': sentiment_count,  # 情感统计数量
     })
+
+
+def get_current_news(request):
+    news_data_analysis = getContentData()
+    news_content = news_data_analysis[0]
+    news_category = news_data_analysis[1]
+    return JsonResponse({'news_content': news_content,
+                         'news_category': news_category})
