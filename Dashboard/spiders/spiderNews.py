@@ -89,22 +89,29 @@ model = BertClassifier()
 model.load_state_dict(torch.load(r'D:\PythonProjects\weibo_django\Dashboard\BERT-toutiao.pt'))
 model.eval()
 tokenizer = BertTokenizer.from_pretrained(r'D:\PythonProjects\weibo_django\Dashboard\bert-base-chinese')
+if torch.cuda.is_available():
+    model.cuda()
 
 
 # 定义 classify_news 函数
 def classify_news(news_data):
     # 对新闻数据进行分词和编码
     text_input = tokenizer(news_data, padding='max_length', max_length=512, truncation=True, return_tensors="pt")
+    if torch.cuda.is_available():
+        text_input = {key: value.cuda() for key, value in text_input.items()}
     mask = text_input['attention_mask']
     input_id = text_input['input_ids']
 
     # 预测新闻分类
+
     with torch.no_grad():
         output = model(input_id, mask)
         label_index = output.argmax(dim=1).item()
 
     # 获取标签名称
     label_string = get_label_string(label_index)
+
+    torch.cuda.empty_cache()  # 清理未使用的显存
     return label_string
 
 
@@ -112,7 +119,7 @@ def classify_news(news_data):
 def getContentData():
     url = 'https://weibo.com/ajax/statuses/mymblog'
     headers = {
-        'Cookie': 'SINAGLOBAL=1984169755402.2407.1630424811319; SCF=AnamYq1gZv9LGPDy7XY42aNFXwRyLUhVSKbNMdmglCAKxYm16jLRNZI7OcctnpFCCXqbiCdLISYkdImnKYxvk6I.; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhrU4fuzK4QyW-e0q8Y2ddg5JpX5KMhUgL.Fo-RSo.XeKn41h22dJLoIXnLxKBLBonL122LxKqLBo-LBoMLxK-LBKBLBKMLxK-LB-BLBKqLxKML1KBL1-qLxKqL1heLBoeLxK.L1h2L1-zLxKML12zL1KMt; ULV=1728987101315:3:3:3:2107928655288.8154.1728987101282:1728978218115; ALF=1732263341; SUB=_2A25KHMD9DeRhGeNG7VsV8SbFwz2IHXVpUFw1rDV8PUJbkNB-LRGmkW1NSzm19G_jUr2R3jWDrBpNiDMatn1R0mX3; PC_TOKEN=0e2fbae3e8; XSRF-TOKEN=_BWRNOFkUUHSIaMF8O8eqorl; WBStorage=fcc86192|undefined; WBPSESS=tBnnI-QNHYIH4eVw5OhdtioMLcDqMwhNG_1HxdYfBbe9i6eO82u54wwcJr8D8MOnTf98wCBfkfPFtRRN_qqGiXZ0eZuMoTEiE97Oiu4F3oTPrr5WyBwI5r70r_3ubPNN8hL_eqAR3_G2SxA7vICg6Q==',
+        'Cookie': 'SINAGLOBAL=1984169755402.2407.1630424811319; SCF=AnamYq1gZv9LGPDy7XY42aNFXwRyLUhVSKbNMdmglCAKxYm16jLRNZI7OcctnpFCCXqbiCdLISYkdImnKYxvk6I.; ULV=1730175311306:5:5:1:4321409565696.8564.1730175311246:1729781733548; WBPSESS=tBnnI-QNHYIH4eVw5OhdtioMLcDqMwhNG_1HxdYfBbe9i6eO82u54wwcJr8D8MOnsaLoGqsVXy6vwKsj2mIZzTKemW_V4HvEdt04g_WBDoqxZ-V4m7FgjYKqOKtag01MrhBvS3tqRtbB8xNwFOmkxA==; PC_TOKEN=2b0b6853dc; ALF=1732869297; SUB=_2A25KJZ_hDeRhGeNG7VsV8SbFwz2IHXVpWp0prDV8PUJbkNANLRbAkW1NSzm19JDIpR8uObJ80qV3uRnjJawVYfHt; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhrU4fuzK4QyW-e0q8Y2ddg5JpX5KMhUgL.Fo-RSo.XeKn41h22dJLoIXnLxKBLBonL122LxKqLBo-LBoMLxK-LBKBLBKMLxK-LB-BLBKqLxKML1KBL1-qLxKqL1heLBoeLxK.L1h2L1-zLxKML12zL1KMt; XSRF-TOKEN=WJlFLUvyRLqDe6Vtq2QCmE1v',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0',
     }
     params = {

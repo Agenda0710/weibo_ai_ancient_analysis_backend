@@ -158,16 +158,6 @@ def get_articles_with_comments(request):
     # 创建一个结果列表，包含文章信息和评论量
     results = []
     for article in paginated_articles:
-        # 使用 bert 进行情感分析
-        article_predicted_label = analyze_article_sentiment(article.content)
-        sentiment = ''
-        if article_predicted_label == 2:
-            sentiment = "正面"
-        elif article_predicted_label == 0:
-            sentiment = "中性"
-        elif article_predicted_label == 1:
-            sentiment = "负面"
-
         results.append({
             'articleId': article.id,
             'region': article.region,
@@ -178,8 +168,13 @@ def get_articles_with_comments(request):
             'content': article.content,
             'create_at': article.create_at,
             'detailUrl': article.detailurl,  # 文章详情页
-            'judge': sentiment,  # 情感分类
         })
+
+    words = [item['content'] for item in results]
+    sentiments = analyze_article_sentiment(words)
+
+    for index, sentiment in enumerate(sentiments):
+        results[index]['judge'] = sentiment
 
     # 返回分页结果和总条数
     return JsonResponse({
@@ -312,10 +307,16 @@ def sentiment_analysis(request):
     top_keywords = get_top_keywords(articles, stopwords)
 
     # 2. 统计文章内容的情感
-    article_sentiment = analyze_sentiment(articles)
+    article_sentiments = analyze_article_sentiment(list(articles))
+    article_positive_count = sum([1 for sentiment in article_sentiments if sentiment == "正面"])
+    article_neutral_count = sum([1 for sentiment in article_sentiments if sentiment == "中性"])
+    article_negative_count = sum([1 for sentiment in article_sentiments if sentiment == "负面"])
 
     # 3. 统计评论内容的情感
-    comment_sentiment = analyze_sentiment(comments)
+    comment_sentiments = analyze_article_sentiment(list(comments))
+    comment_positive_count = sum([1 for sentiment in comment_sentiments if sentiment == "正面"])
+    comment_neutral_count = sum([1 for sentiment in comment_sentiments if sentiment == "中性"])
+    comment_negative_count = sum([1 for sentiment in comment_sentiments if sentiment == "负面"])
 
     # 4.统计热词的情感
     all_words = []
@@ -332,8 +333,16 @@ def sentiment_analysis(request):
     # 返回结果
     return JsonResponse({
         'top_keywords': top_keywords,
-        'article_sentiment': article_sentiment,
-        'comment_sentiment': comment_sentiment,
+        'article_sentiment': {
+            'positive': article_positive_count,
+            'neutral': article_neutral_count,
+            'negative': article_negative_count
+        },
+        'comment_sentiment': {
+            'positive': comment_positive_count,
+            'neutral': comment_neutral_count,
+            'negative': comment_negative_count
+        },
         'keywords_sentiment': keywords_sentiment
     })
 
@@ -362,7 +371,7 @@ def article_content_word_cloud(request):
 def get_hot_search_data(request):
     url = 'https://weibo.com/ajax/statuses/mineBand'
     headers = {
-        'Cookie': 'SINAGLOBAL=1984169755402.2407.1630424811319; SCF=AnamYq1gZv9LGPDy7XY42aNFXwRyLUhVSKbNMdmglCAKxYm16jLRNZI7OcctnpFCCXqbiCdLISYkdImnKYxvk6I.; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhrU4fuzK4QyW-e0q8Y2ddg5JpX5KMhUgL.Fo-RSo.XeKn41h22dJLoIXnLxKBLBonL122LxKqLBo-LBoMLxK-LBKBLBKMLxK-LB-BLBKqLxKML1KBL1-qLxKqL1heLBoeLxK.L1h2L1-zLxKML12zL1KMt; ULV=1728987101315:3:3:3:2107928655288.8154.1728987101282:1728978218115; ALF=1732263341; SUB=_2A25KHMD9DeRhGeNG7VsV8SbFwz2IHXVpUFw1rDV8PUJbkNB-LRGmkW1NSzm19G_jUr2R3jWDrBpNiDMatn1R0mX3; PC_TOKEN=0e2fbae3e8; XSRF-TOKEN=_BWRNOFkUUHSIaMF8O8eqorl; WBStorage=fcc86192|undefined; WBPSESS=tBnnI-QNHYIH4eVw5OhdtioMLcDqMwhNG_1HxdYfBbe9i6eO82u54wwcJr8D8MOnTf98wCBfkfPFtRRN_qqGiXZ0eZuMoTEiE97Oiu4F3oTPrr5WyBwI5r70r_3ubPNN8hL_eqAR3_G2SxA7vICg6Q==',
+        'Cookie': 'SINAGLOBAL=1984169755402.2407.1630424811319; SCF=AnamYq1gZv9LGPDy7XY42aNFXwRyLUhVSKbNMdmglCAKxYm16jLRNZI7OcctnpFCCXqbiCdLISYkdImnKYxvk6I.; ULV=1730175311306:5:5:1:4321409565696.8564.1730175311246:1729781733548; WBPSESS=tBnnI-QNHYIH4eVw5OhdtioMLcDqMwhNG_1HxdYfBbe9i6eO82u54wwcJr8D8MOnsaLoGqsVXy6vwKsj2mIZzTKemW_V4HvEdt04g_WBDoqxZ-V4m7FgjYKqOKtag01MrhBvS3tqRtbB8xNwFOmkxA==; PC_TOKEN=2b0b6853dc; ALF=1732869297; SUB=_2A25KJZ_hDeRhGeNG7VsV8SbFwz2IHXVpWp0prDV8PUJbkNANLRbAkW1NSzm19JDIpR8uObJ80qV3uRnjJawVYfHt; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhrU4fuzK4QyW-e0q8Y2ddg5JpX5KMhUgL.Fo-RSo.XeKn41h22dJLoIXnLxKBLBonL122LxKqLBo-LBoMLxK-LBKBLBKMLxK-LB-BLBKqLxKML1KBL1-qLxKqL1heLBoeLxK.L1h2L1-zLxKML12zL1KMt; XSRF-TOKEN=WJlFLUvyRLqDe6Vtq2QCmE1v',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0',
     }
 
@@ -373,15 +382,15 @@ def get_hot_search_data(request):
         for item in response.json()['data']['realtime']:
             word = item.get('word')  # 安全获取字段
             description = item.get('description', '无描述')  # 默认描述
-            article_predicted_label = analyze_article_sentiment(word)
-            sentiment = ''
-            if article_predicted_label == 2:
-                sentiment = "正面"
-            elif article_predicted_label == 0:
-                sentiment = "中性"
-            elif article_predicted_label == 1:
-                sentiment = "负面"
-            hot_search_list.append({'content': word, 'sentiment': sentiment, 'description': description})
+            hot_search_list.append({'content': word, 'description': description})
+
+        # 批量分析情感
+        words = [item['content'] for item in hot_search_list]
+        sentiments = analyze_article_sentiment(words)
+
+        # 将情感结果添加到列表中
+        for i, sentiment in enumerate(sentiments):
+            hot_search_list[i]['sentiment'] = sentiment
 
     # 统计情感数量
     sentiment_count = {

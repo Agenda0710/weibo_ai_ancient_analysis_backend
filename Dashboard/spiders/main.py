@@ -60,7 +60,7 @@ def save_to_sql():
 
 def main():
     print('正在爬取文章数据')
-    spiderContentStart(typeNum=3, pageNum=2)
+    spiderContentStart(typeNum=4, pageNum=2)
     print('正在爬取评论数据')
     spiderCommentStart()
     print('正在存储数据')
@@ -71,5 +71,4 @@ def main():
 
 
 if __name__ == '__main__':
-    save_to_sql()
-    alter_tables()
+    main()

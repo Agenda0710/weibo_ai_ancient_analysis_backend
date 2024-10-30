@@ -57,34 +57,43 @@ def analyze_sentiment(content_list):
     return sentiment_data
 
 
-def analyze_article_sentiment(text):
-    # 1. 加载模型和分词器
-    tokenizer = BertTokenizer.from_pretrained(r'D:\PythonProjects\weibo_django\Dashboard\bert-base-chinese')
-    model = BertForSequenceClassification.from_pretrained(r'D:\PythonProjects\weibo_django\Dashboard\bert-base-chinese',
-                                                          num_labels=3)
+# 1. 加载模型和分词器
+tokenizer = BertTokenizer.from_pretrained(r'D:\PythonProjects\weibo_django\Dashboard\bert-base-chinese')
+model = BertForSequenceClassification.from_pretrained(r'D:\PythonProjects\weibo_django\Dashboard\bert-base-chinese',
+                                                      num_labels=3)
+if torch.cuda.is_available():
+    model.cuda()
 
-    # 2. 加载状态字典
-    model.load_state_dict(torch.load(r'D:\PythonProjects\weibo_django\Dashboard\weibo_articles_content_analysis.pt'))
+# 2. 加载状态字典
+model.load_state_dict(torch.load(r'D:\PythonProjects\weibo_django\Dashboard\weibo_articles_content_analysis.pt'))
 
-    # 3. 设置模型为评估模式
-    model.eval()
+# 3. 设置模型为评估模式
+model.eval()
 
-    inputs = tokenizer.encode_plus(
-        text,
-        add_special_tokens=True,
-        max_length=128,
-        padding='max_length',
-        truncation=True,
-        return_tensors='pt'
-    )
 
-    input_ids = inputs['input_ids']
-    attention_mask = inputs['attention_mask']
+def analyze_article_sentiment(texts, batch_size=16):
+    sentiment_labels = []
+    for i in range(0, len(texts), batch_size):
+        batch_texts = texts[i:i + batch_size]
+        inputs = tokenizer(batch_texts, padding=True, truncation=True, return_tensors='pt', max_length=128)
+        if torch.cuda.is_available():
+            inputs = {key: value.cuda() for key, value in inputs.items()}
 
-    with torch.no_grad():  # 不需要计算梯度
-        outputs = model(input_ids, attention_mask=attention_mask)
+        with torch.no_grad(), torch.cuda.amp.autocast():
+            outputs = model(**inputs)
 
-    logits = outputs.logits
-    _, predicted = torch.max(logits, dim=1)
+        logits = outputs.logits
+        predictions = torch.argmax(logits, dim=1)
 
-    return predicted.item()  # 返回预测的类别
+        for pred in predictions:
+            if pred.item() == 2:
+                sentiment_labels.append("正面")
+            elif pred.item() == 0:
+                sentiment_labels.append("中性")
+            elif pred.item() == 1:
+                sentiment_labels.append("负面")
+
+        torch.cuda.empty_cache()  # 清理未使用的显存
+
+    return sentiment_labels  # 返回情感标签的列表
+
