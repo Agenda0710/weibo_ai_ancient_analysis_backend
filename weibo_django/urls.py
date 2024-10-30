@@ -22,7 +22,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     # 获取首页数据
     path('article_statistics/', views.get_article_statistics, name='get_article_statistics'),
-    # 获取热词数据
+    # 获取评论热词数据
     path('hotWords/', views.get_hot_words_statistics, name='get_hot_words_statistics'),
     # 获取第三页（微博舆情统计)
     path('articles/', views.get_articles_with_comments, name='articles_list'),

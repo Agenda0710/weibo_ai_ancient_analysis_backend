@@ -2,6 +2,8 @@ import jieba
 from snownlp import SnowNLP
 from collections import Counter
 import re
+from transformers import BertForSequenceClassification, BertTokenizer
+import torch
 
 
 # 加载停用词表
@@ -53,3 +55,36 @@ def analyze_sentiment(content_list):
             sentiment_data['negative'] += 1
 
     return sentiment_data
+
+
+def analyze_article_sentiment(text):
+    # 1. 加载模型和分词器
+    tokenizer = BertTokenizer.from_pretrained(r'D:\PythonProjects\weibo_django\Dashboard\bert-base-chinese')
+    model = BertForSequenceClassification.from_pretrained(r'D:\PythonProjects\weibo_django\Dashboard\bert-base-chinese',
+                                                          num_labels=3)
+
+    # 2. 加载状态字典
+    model.load_state_dict(torch.load(r'D:\PythonProjects\weibo_django\Dashboard\weibo_articles_content_analysis.pt'))
+
+    # 3. 设置模型为评估模式
+    model.eval()
+
+    inputs = tokenizer.encode_plus(
+        text,
+        add_special_tokens=True,
+        max_length=128,
+        padding='max_length',
+        truncation=True,
+        return_tensors='pt'
+    )
+
+    input_ids = inputs['input_ids']
+    attention_mask = inputs['attention_mask']
+
+    with torch.no_grad():  # 不需要计算梯度
+        outputs = model(input_ids, attention_mask=attention_mask)
+
+    logits = outputs.logits
+    _, predicted = torch.max(logits, dim=1)
+
+    return predicted.item()  # 返回预测的类别
