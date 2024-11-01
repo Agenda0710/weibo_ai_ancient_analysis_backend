@@ -40,4 +40,6 @@ urlpatterns = [
     path('getHotSearchData/', views.get_hot_search_data, name='get_hot_search_data'),
     # 获取第十页数据（央视新闻）
     path('getCurrentNews/', views.get_current_news, name='get_current_news'),
+    # 新增大屏展示
+    path('getDataViews/', views.get_data_views, name='get_data_views'),
 ]

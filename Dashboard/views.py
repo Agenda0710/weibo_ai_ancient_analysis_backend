@@ -37,7 +37,7 @@ def get_article_statistics(request):
     usernames = Comments.objects.values_list('authorname', flat=True)
 
     # 定义要删除的高频词列表
-    stop_words = ['我', '你', '他', '的', '是', '啊']
+    stop_words = load_stopwords()
 
     # 对用户名进行分词并统计词频
     words = []
@@ -411,6 +411,66 @@ def get_current_news(request):
     # 统计新闻分类
     category_counts = Counter(label for _, label in ((list(item.items())[0]) for item in news_data_analysis))
     return JsonResponse({
-        'news_data_analysis': news_data_analysis,  # 当前页的数据
+        'news_data_analysis': news_data_analysis,
         'category_counts': category_counts
+    })
+
+
+def get_data_views(request):
+    # 返回表格数据
+    comments_content = list(Comments.objects.all().values_list('content', flat=True).order_by('created_at').reverse())
+    comments_region = list(Comments.objects.all().values_list('region', flat=True).order_by('created_at').reverse())
+    comments_sentiments_analysis = analyze_article_sentiment(comments_content)
+    comment_list = [{'comments_content': comment, 'sentiments_analysis': sentiment, 'comments_region': region} for
+                    comment, sentiment, region in
+                    zip(comments_content, comments_sentiments_analysis, comments_region)]
+
+    # 返回饼图数据
+    # 获取不同文章类型的占比
+    article_type_data = Article.objects.values('type').annotate(type_count=Count('id'))
+    article_type_list = [{'value': entry['type_count'], 'type': entry['type']} for entry in article_type_data]
+
+    # 排名图
+    # 返回新闻类别
+    news_data_analysis = getContentData()
+    # 统计新闻分类
+    news_category_counts = Counter(label for _, label in ((list(item.items())[0]) for item in news_data_analysis))
+
+    # 统计新闻词云图
+    news_contents = [key for key, _ in ((list(item.items())[0]) for item in news_data_analysis)]
+    stop_words = load_stopwords()
+    # 对新闻进行分词并统计词频
+    words = []
+    for news_content in news_contents:
+        for word in jieba.cut(news_content):
+            if word not in stop_words and re.match(r'^[\u4e00-\u9fa5]+$', word) and word not in ['了', '是', '在',
+                                                                                                 '的', '一个', '有',
+                                                                                                 '又', '也']:
+                words.append(word)
+
+    # 对词语进行统计
+    word_counts = Counter(words)
+
+    # 只取前十五条数据
+    top_fifteen = dict(word_counts.most_common(15))
+
+    # 准备词云图数据，转换成字典数据
+    news_wordcloud_data = [{'name': word, 'value': count} for word, count in top_fifteen.items()]
+
+    # 返回胶囊图数据，新闻情感
+    news_sentiments_analysis = analyze_article_sentiment(news_contents)
+    news_sentiments_statistic = Counter(news_sentiments_analysis)
+
+    # 返回翻牌器数据，统计微博文章和评论的数量
+    article_count = Article.objects.count()
+    comment_count = Comments.objects.count()
+
+    return JsonResponse({
+        'comment_list': comment_list,
+        'article_type_list': article_type_list,
+        'news_category_counts': news_category_counts,
+        'news_wordcloud_data': news_wordcloud_data,
+        'news_sentiments_statistic': news_sentiments_statistic,
+        'article_count': article_count,
+        'comment_count': comment_count,
     })
