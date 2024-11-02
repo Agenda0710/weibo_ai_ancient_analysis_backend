@@ -287,7 +287,7 @@ def comments_analysis(request):
 
     # 获取词频数据
     word_frequencies = WordFrequency.objects.all().values('word', 'frequency')
-    word_data = [{'name': wf['word'], 'value': wf['frequency']} for wf in word_frequencies]
+    word_data = [{'name': wf['word'], 'value': wf['frequency']} for wf in word_frequencies[:40]]
 
     return JsonResponse({
         'data': response_data,
