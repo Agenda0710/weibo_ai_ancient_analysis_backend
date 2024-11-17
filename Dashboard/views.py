@@ -1,19 +1,28 @@
+import json
+
 from django.core.paginator import Paginator
 from django.db.models.functions import Cast
-from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
+
 from .models import *
 from django.http import JsonResponse
-import requests
 from django.db.models import Count, Max
 from collections import Counter, defaultdict
 import jieba
 from snownlp import SnowNLP
 from Dashboard.utils.sentimentAnalysis import *
 from Dashboard.spiders.spiderNews import *
+from transformers import BertTokenizer, BertForSequenceClassification
+import torch
 
 
 # Create your views here.
 def get_article_statistics(request):
+    """
+    首页数据
+    :param request:
+    :return:
+    """
     # 获取文章总数
     total_articles = Article.objects.count()
 
@@ -90,6 +99,11 @@ def get_article_statistics(request):
 
 
 def get_hot_words_statistics(request):
+    """
+    获取评论热词数据
+    :param request:
+    :return:
+    """
     word_frequency_data = WordFrequency.objects.all()
 
     # 处理词频数据并进行情感分析
@@ -144,6 +158,11 @@ def get_hot_words_statistics(request):
 
 
 def get_articles_with_comments(request):
+    """
+    文章数据展示
+    :param request:
+    :return:
+    """
     # 获取分页参数
     page = request.GET.get('page', 1)  # 默认为第一页
     page_size = request.GET.get('page_size', 6)  # 默认为每页6条数据
@@ -186,6 +205,11 @@ def get_articles_with_comments(request):
 
 
 def article_analysis(request):
+    """
+    文章内容分析
+    :param request:
+    :return:
+    """
     # 查询所有文章的类型并去重
     article_types = Article.objects.values_list('type', flat=True).distinct()
     selected_type = request.GET.get('type', None)
@@ -224,6 +248,11 @@ def article_analysis(request):
 
 
 def region_analysis(request):
+    """
+    ip地址分析
+    :param request:
+    :return:
+    """
     # 统计每个地区的文章数
     article_counts = (
         Article.objects.values('region')  # 以地区分组
@@ -257,6 +286,11 @@ def region_analysis(request):
 
 
 def comments_analysis(request):
+    """
+    评论分析
+    :param request:
+    :return:
+    """
     # 定义点赞数区间为每 20 个一组
     interval = 20
 
@@ -297,6 +331,11 @@ def comments_analysis(request):
 
 
 def sentiment_analysis(request):
+    """
+    文章内容+评论的情感分析
+    :param request:
+    :return:
+    """
     # 获取所有文章内容和评论内容
     articles = Article.objects.all().values_list('content', flat=True)
     comments = Comments.objects.all().values_list('content', flat=True)
@@ -348,6 +387,11 @@ def sentiment_analysis(request):
 
 
 def article_content_word_cloud(request):
+    """
+    微博内容词云图的分析
+    :param request:
+    :return:
+    """
     stopwords = load_stopwords()
 
     # 获取文章内容 (假设文章存在数据库中)
@@ -369,10 +413,15 @@ def article_content_word_cloud(request):
 
 
 def get_hot_search_data(request):
+    """
+    热搜数据展示and热搜的情感分析
+    :param request:
+    :return:
+    """
     url = 'https://weibo.com/ajax/side/hotSearch'
     headers = {
-        'Cookie': 'SINAGLOBAL=1984169755402.2407.1630424811319; SCF=AnamYq1gZv9LGPDy7XY42aNFXwRyLUhVSKbNMdmglCAKxYm16jLRNZI7OcctnpFCCXqbiCdLISYkdImnKYxvk6I.; ULV=1730175311306:5:5:1:4321409565696.8564.1730175311246:1729781733548; ALF=1733496951; SUB=_2A25KL_MnDeRhGeNG7VsV8SbFwz2IHXVpRQrvrDV8PUJbkNANLUv3kW1NSzm19ALD9Zdy1GG6eoILVAtp8TUOGIQ4; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhrU4fuzK4QyW-e0q8Y2ddg5JpX5KMhUgL.Fo-RSo.XeKn41h22dJLoIXnLxKBLBonL122LxKqLBo-LBoMLxK-LBKBLBKMLxK-LB-BLBKqLxKML1KBL1-qLxKqL1heLBoeLxK.L1h2L1-zLxKML12zL1KMt; PC_TOKEN=15ec5e8ffc; XSRF-TOKEN=5mAJTWpTz7p4MppUXQQYI9ly; WBPSESS=tBnnI-QNHYIH4eVw5OhdtioMLcDqMwhNG_1HxdYfBbciA8deGx9L62h1QiAALi5vROqPUgtyBw_iTERXI0Yq2e90APVs0_cYr-cE5QgUfUTTgGlkqCzT0GXN49x6acdOmOyV6PG9cwXNFhHUvtFc7Q==',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0',
+        'Cookie': 'SINAGLOBAL=1984169755402.2407.1630424811319; SCF=AnamYq1gZv9LGPDy7XY42aNFXwRyLUhVSKbNMdmglCAKxYm16jLRNZI7OcctnpFCCXqbiCdLISYkdImnKYxvk6I.; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhrU4fuzK4QyW-e0q8Y2ddg5JpX5KMhUgL.Fo-RSo.XeKn41h22dJLoIXnLxKBLBonL122LxKqLBo-LBoMLxK-LBKBLBKMLxK-LB-BLBKqLxKML1KBL1-qLxKqL1heLBoeLxK.L1h2L1-zLxKML12zL1KMt; ALF=1734073166; SUB=_2A25KMD4eDeRhGeNG7VsV8SbFwz2IHXVpTD_WrDV8PUJbkNANLXPTkW1NSzm19AODpzmhVs0nuIEsNPJFIwXnn7OF; XSRF-TOKEN=sUr1jM6cA_gKOaPB7ChMXfov; PC_TOKEN=3b4a119c25; _s_tentry=weibo.com; Apache=4133330521076.9653.1731851135541; ULV=1731851135570:6:1:1:4133330521076.9653.1731851135541:1730175311306; WBPSESS=tBnnI-QNHYIH4eVw5OhdtioMLcDqMwhNG_1HxdYfBbe9i6eO82u54wwcJr8D8MOnTf98wCBfkfPFtRRN_qqGibVlS-1iOfE3CMzSSnQmuKcN3fJW4wYYfFJDaW0UwOwzSejZ9FOXPbppZPvXobAAgg==',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
     }
 
     response = requests.get(url, headers=headers)
@@ -407,6 +456,11 @@ def get_hot_search_data(request):
 
 
 def get_current_news(request):
+    """
+    新闻页面的展示and新闻的分类
+    :param request:
+    :return:
+    """
     news_data_analysis = getContentData()
     # 统计新闻分类
     category_counts = Counter(label for _, label in ((list(item.items())[0]) for item in news_data_analysis))
@@ -417,6 +471,11 @@ def get_current_news(request):
 
 
 def get_data_views(request):
+    """
+    数据大屏的数据展示
+    :param request:
+    :return:
+    """
     # 返回表格数据
     comments_content = list(Comments.objects.all().values_list('content', flat=True).order_by('created_at').reverse())
     comments_region = list(Comments.objects.all().values_list('region', flat=True).order_by('created_at').reverse())
@@ -474,3 +533,44 @@ def get_data_views(request):
         'article_count': article_count,
         'comment_count': comment_count,
     })
+
+
+# 加载保存的模型和分词器
+model_path = r"D:\PythonProjects\weibo_django\Dashboard\fine_tuned_bert_fake_news"
+tokenizer = BertTokenizer.from_pretrained(model_path)
+model = BertForSequenceClassification.from_pretrained(model_path)
+model.eval()  # 设置为评估模式
+
+
+@csrf_exempt  # 禁用 CSRF 验证
+def predict_fake_or_real(request):
+    """
+    接收前端发送的新闻内容，返回预测结果（真假）。
+    """
+    if request.method == "POST":
+        try:
+            # 解析 JSON 数据
+            data = json.loads(request.body)
+            text = data.get("text", "")
+            if not text:
+                return JsonResponse({"error": "请输入有效的文本！"}, status=400)
+
+            # 模型预测
+            inputs = tokenizer(text, return_tensors="pt", padding="max_length", truncation=True, max_length=128)
+            with torch.no_grad():
+                outputs = model(**inputs)
+            logits = outputs.logits
+            predicted_class = torch.argmax(logits, dim=-1).item()
+
+            # 映射预测结果
+            label_map = {0: "假新闻", 1: "真新闻"}
+            prediction = label_map[predicted_class]
+
+            return JsonResponse({"prediction": prediction}, status=200)
+
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "无效的 JSON 数据！"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "仅支持 POST 请求！"}, status=405)

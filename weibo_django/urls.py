@@ -42,4 +42,6 @@ urlpatterns = [
     path('getCurrentNews/', views.get_current_news, name='get_current_news'),
     # 新增大屏展示
     path('getDataViews/', views.get_data_views, name='get_data_views'),
+    # 新增虚假文章内容分析
+    path('predictFakeOrReal/', views.predict_fake_or_real, name="predict_fake_or_real"),
 ]
