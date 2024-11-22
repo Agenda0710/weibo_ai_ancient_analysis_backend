@@ -12,8 +12,8 @@ def second_step():
     get_yuqing()
     print('文件生成完成')
     # 读取 csv 文件
-    cipingTotalFile = pd.read_csv('cipingTotal.csv', header=0, names=['word', 'frequency'])
-    yuqingFile = pd.read_csv('target.csv', header=0, names=['comment', 'judge'])
+    cipingTotalFile = pd.read_csv(r'Dashboard/learning_model/cipingTotal.csv', header=0, names=['word', 'frequency'])
+    yuqingFile = pd.read_csv(r'Dashboard/learning_model/target.csv', header=0, names=['comment', 'judge'])
     return cipingTotalFile, yuqingFile
 
 
@@ -34,8 +34,8 @@ def first_step():
         public_sentiment_new.to_sql('public_sentiment', con=engine, if_exists='replace', index=False)
         third_step()
     except ValueError:
-        frequencyNewPd = pd.read_csv('cipingTotal.csv')
-        sentimentNewPd = pd.read_csv('target.csv')
+        frequencyNewPd = pd.read_csv(r'Dashboard/learning_model/cipingTotal.csv')
+        sentimentNewPd = pd.read_csv(r'Dashboard/learning_model/target.csv')
         frequencyNewPd.to_sql('word_frequency', con=engine, if_exists='replace', index=False)
         sentimentNewPd.to_sql('public_sentiment', con=engine, if_exists='replace', index=False)
         third_step()

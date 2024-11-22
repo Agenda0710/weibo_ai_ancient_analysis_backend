@@ -6,8 +6,8 @@ import csv
 
 
 def init():
-    if not os.path.exists('./commentData.csv'):
-        with open('./commentData.csv', 'w', newline='', encoding='utf-8') as f:
+    if not os.path.exists(r'Dashboard/spiders/commentData.csv'):
+        with open(r'Dashboard/spiders/commentData.csv', 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow([
                 'articleId',
@@ -23,7 +23,7 @@ def init():
 
 
 def writeRow(row):
-    with open('./commentData.csv', 'a', newline='', encoding='utf-8') as f:
+    with open(r'Dashboard/spiders/commentData.csv', 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(row)
 
@@ -60,7 +60,7 @@ def getCommentData(url, params, retries=5, timeout=10):
 
 def getArticleList():
     articleList = []
-    with open('./contentData.csv', 'r', encoding='utf-8') as f:
+    with open(r'Dashboard/spiders/contentData.csv', 'r', encoding='utf-8') as f:
         reader = csv.reader(f)
         next(reader)
         for row in reader:
@@ -95,7 +95,7 @@ def parse_json(response, articleId):
             ])
 
 
-def start(typeNum=3, pageNum=2):
+def start():
     contentUrl = 'https://weibo.com/ajax/statuses/buildComments'
     init()
     articleList = getArticleList()

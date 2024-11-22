@@ -4,7 +4,7 @@ from Dashboard.utils.getPublicData import getAllCommentData
 
 
 def targetFile():
-    targetFile = 'target.csv'
+    targetFile = r'Dashboard/learning_model/target.csv'
     commentList = getAllCommentData()
 
     rateData = []
@@ -28,7 +28,7 @@ def targetFile():
         else:
             print(f"第 {index + 1} 行评论为空，跳过该条记录。")
 
-    with open(targetFile, 'w', newline='', encoding='utf-8') as f:
+    with open(targetFile, 'w', newline='', encoding='utf-8', errors='ignore') as f:
         writer = csv.writer(f)
         writer.writerow([
             'comment',
@@ -36,8 +36,6 @@ def targetFile():
         ])
         for i in rateData:
             writer.writerow(i)
-
-        print(rateData)
 
 
 def main():

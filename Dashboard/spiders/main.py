@@ -1,3 +1,4 @@
+import os
 from Dashboard.spiders.spiderComment import start as spiderCommentStart
 from Dashboard.spiders.spiderContent import start as spiderContentStart
 from sqlalchemy import create_engine, text
@@ -23,11 +24,11 @@ def save_to_sql():
         # 从数据库中读取名为 weibo.article 的表数据到 articleOldPd
         articleOldPd = pd.read_sql('select * from weibo.article', con=engine)
         # 从本地 CSV 文件 contentData.csv 读取数据到 articleNewPd
-        articleNewPd = pd.read_csv('contentData.csv')
+        articleNewPd = pd.read_csv(r'Dashboard/spiders/contentData.csv')
         # 从数据库中读取名为 weibo.comments 的表数据到 commentOldPd
         commentOldPd = pd.read_sql('select * from weibo.comments', con=engine)
         # 从本地 CSV 文件 commentData.csv 读取数据到 commentNewPd
-        commentNewPd = pd.read_csv('commentData.csv')
+        commentNewPd = pd.read_csv(r'Dashboard/spiders/commentData.csv')
 
         # 将 articleNewPd 和 articleOldPd 进行纵向合并，取交集
         concatArticlePd = pd.concat([articleNewPd, articleOldPd], join='inner')
@@ -43,19 +44,19 @@ def save_to_sql():
         concatArticlePd.to_sql('article', con=engine, if_exists='replace', index=False)
         # 将处理后的 concatCommentPd 数据写入数据库表 comments，如果表已存在则替换
         concatCommentPd.to_sql('comments', con=engine, if_exists='replace', index=False)
-    except ConnectionError as e:
-        print(f"连接错误: {e}")
-        # 重试保存数据
-        save_to_sql()
+        os.remove(r'Dashboard/spiders/contentData.csv')
+        os.remove(r'Dashboard/spiders/commentData.csv')
     except Exception as e:
         print(f"出现错误: {e}")
         # 如果出现其他错误，将 CSV 数据直接写入数据库表
-        articleNewPd = pd.read_csv('contentData.csv')
-        commentNewPd = pd.read_csv('commentData.csv')
+        articleNewPd = pd.read_csv(r'Dashboard/spiders/contentData.csv')
+        commentNewPd = pd.read_csv(r'Dashboard/spiders/commentData.csv')
         # 将 articleNewPd 数据写入数据库表 article，如果表已存在则替换
         articleNewPd.to_sql('article', con=engine, if_exists='replace', index=False)
         # 将 commentNewPd 数据写入数据库表 comments，如果表已存在则替换
         commentNewPd.to_sql('comments', con=engine, if_exists='replace', index=False)
+        os.remove(r'Dashboard/spiders/contentData.csv')
+        os.remove(r'Dashboard/spiders/commentData.csv')
 
 
 def main(typeNum, pageNum):
@@ -71,5 +72,4 @@ def main(typeNum, pageNum):
 
 
 if __name__ == '__main__':
-    save_to_sql()
-
+    main(1, 1)

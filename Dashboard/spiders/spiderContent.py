@@ -7,8 +7,8 @@ import csv
 
 
 def init():
-    if not os.path.exists('./contentData.csv'):
-        with open('./contentData.csv', 'w', newline='', encoding='utf-8') as f:
+    if not os.path.exists(r'Dashboard/spiders/contentData.csv'):
+        with open(r'Dashboard/spiders/contentData.csv', 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow([
                 'id',
@@ -29,7 +29,7 @@ def init():
 
 
 def writeRow(row):
-    with open('./contentData.csv', 'a', newline='', encoding='utf-8') as f:
+    with open(r'Dashboard/spiders/contentData.csv', 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(row)
 
@@ -105,8 +105,8 @@ def start(typeNum=3, pageNum=2):
     articleUrl = 'https://weibo.com/ajax/feed/hottimeline'
     init()
     typeList = getTypeList()
-    typeNumCount = 0
-    for type in typeList[3::]:
+    typeNumCount = 1
+    for type in typeList:
         if typeNumCount > typeNum:
             return
         time.sleep(2)
