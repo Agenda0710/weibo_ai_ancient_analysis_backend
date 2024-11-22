@@ -1,5 +1,5 @@
-from spiderComment import start as spiderCommentStart
-from spiderContent import start as spiderContentStart
+from Dashboard.spiders.spiderComment import start as spiderCommentStart
+from Dashboard.spiders.spiderContent import start as spiderContentStart
 from sqlalchemy import create_engine, text
 import pandas as pd
 
@@ -58,9 +58,9 @@ def save_to_sql():
         commentNewPd.to_sql('comments', con=engine, if_exists='replace', index=False)
 
 
-def main():
+def main(typeNum, pageNum):
     print('正在爬取文章数据')
-    spiderContentStart(typeNum=4, pageNum=2)
+    spiderContentStart(typeNum, pageNum)
     print('正在爬取评论数据')
     spiderCommentStart()
     print('正在存储数据')
@@ -71,4 +71,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    save_to_sql()
+

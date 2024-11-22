@@ -14,6 +14,9 @@ from Dashboard.utils.sentimentAnalysis import *
 from Dashboard.spiders.spiderNews import *
 from transformers import BertTokenizer, BertForSequenceClassification
 import torch
+from Dashboard.spiders.main import main as CollectData
+from Dashboard.learning_model.main import first_step as GetWordFrequency
+from Dashboard.spiders.spiderHotSearch import get_hot_search_data as HotSearchData
 
 
 # Create your views here.
@@ -418,28 +421,15 @@ def get_hot_search_data(request):
     :param request:
     :return:
     """
-    url = 'https://weibo.com/ajax/side/hotSearch'
-    headers = {
-        'Cookie': 'SINAGLOBAL=1984169755402.2407.1630424811319; SCF=AnamYq1gZv9LGPDy7XY42aNFXwRyLUhVSKbNMdmglCAKxYm16jLRNZI7OcctnpFCCXqbiCdLISYkdImnKYxvk6I.; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhrU4fuzK4QyW-e0q8Y2ddg5JpX5KMhUgL.Fo-RSo.XeKn41h22dJLoIXnLxKBLBonL122LxKqLBo-LBoMLxK-LBKBLBKMLxK-LB-BLBKqLxKML1KBL1-qLxKqL1heLBoeLxK.L1h2L1-zLxKML12zL1KMt; ALF=1734073166; SUB=_2A25KMD4eDeRhGeNG7VsV8SbFwz2IHXVpTD_WrDV8PUJbkNANLXPTkW1NSzm19AODpzmhVs0nuIEsNPJFIwXnn7OF; XSRF-TOKEN=sUr1jM6cA_gKOaPB7ChMXfov; PC_TOKEN=3b4a119c25; _s_tentry=weibo.com; Apache=4133330521076.9653.1731851135541; ULV=1731851135570:6:1:1:4133330521076.9653.1731851135541:1730175311306; WBPSESS=tBnnI-QNHYIH4eVw5OhdtioMLcDqMwhNG_1HxdYfBbe9i6eO82u54wwcJr8D8MOnTf98wCBfkfPFtRRN_qqGibVlS-1iOfE3CMzSSnQmuKcN3fJW4wYYfFJDaW0UwOwzSejZ9FOXPbppZPvXobAAgg==',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
-    }
+    hot_search_list = HotSearchData()
 
-    response = requests.get(url, headers=headers)
-    hot_search_list = []
+    # 批量分析情感
+    words = [item['content'] for item in hot_search_list]
+    sentiments = analyze_article_sentiment(words)
 
-    if response.status_code == 200:
-        for item in response.json()['data']['realtime']:
-            word = item.get('word')  # 安全获取字段
-            description = item.get('num', '无描述')  # 默认描述
-            hot_search_list.append({'content': word, 'description': description})
-
-        # 批量分析情感
-        words = [item['content'] for item in hot_search_list]
-        sentiments = analyze_article_sentiment(words)
-
-        # 将情感结果添加到列表中
-        for i, sentiment in enumerate(sentiments):
-            hot_search_list[i]['sentiment'] = sentiment
+    # 将情感结果添加到列表中
+    for i, sentiment in enumerate(sentiments):
+        hot_search_list[i]['sentiment'] = sentiment
 
     # 统计情感数量
     sentiment_count = {
@@ -572,5 +562,28 @@ def predict_fake_or_real(request):
             return JsonResponse({"error": "无效的 JSON 数据！"}, status=400)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "仅支持 POST 请求！"}, status=405)
+
+@csrf_exempt  # 禁用 CSRF 验证
+def auto_data_collection(request):
+    """
+    爬虫自动化
+    :param request:
+    :return:
+    """
+    if request.method == "POST":
+        data = json.loads(request.body)
+        # 获取爬取类型的数量
+        type_num = data.get("type_num", '')
+        # 获取爬取文章页面的页数
+        page_num = data.get("page_num", '')
+
+        # 进行数据采集
+        CollectData(type_num, page_num)
+        # 进行词频分析
+        GetWordFrequency()
+
+        return JsonResponse({"success": True}, status=200)
 
     return JsonResponse({"error": "仅支持 POST 请求！"}, status=405)

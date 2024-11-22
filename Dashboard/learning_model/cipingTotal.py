@@ -5,12 +5,12 @@ import csv
 
 def main():
     # 读取分词文件
-    reader = open('./cutComments.txt', 'r', encoding='utf8')
+    reader = open(r'D:\PythonProjects\weibo_django\Dashboard\learning_model\cutComments.txt', 'r', encoding='utf8')
     text = reader.read()
     reader.close()
 
     # 打开结果文件用于保存
-    result = open('./cipingTotal.csv', 'w', encoding='utf8', newline='')
+    result = open(r'D:\PythonProjects\weibo_django\Dashboard\learning_model\cipingTotal.csv', 'w', encoding='utf8', newline='')
 
     # 分词
     word_list = jieba.cut(text, cut_all=True)

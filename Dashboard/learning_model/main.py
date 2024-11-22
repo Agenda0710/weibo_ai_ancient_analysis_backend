@@ -44,12 +44,26 @@ def first_step():
 def third_step():
     with engine.connect() as conn:
         try:
-            conn.execute(
-                text('ALTER TABLE word_frequency ADD COLUMN id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;'))
-            conn.execute(
-                text('ALTER TABLE public_sentiment ADD COLUMN id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;'))
+            # 检查 word_frequency 表中是否存在 id 列
+            result = conn.execute(text("SHOW COLUMNS FROM word_frequency LIKE 'id';")).fetchall()
+            if not result:  # 如果没有 id 列，则添加
+                conn.execute(
+                    text('ALTER TABLE word_frequency ADD COLUMN id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;')
+                )
+            else:
+                print("word_frequency 表中已存在 id 列，跳过修改。")
+
+            # 检查 public_sentiment 表中是否存在 id 列
+            result = conn.execute(text("SHOW COLUMNS FROM public_sentiment LIKE 'id';")).fetchall()
+            if not result:  # 如果没有 id 列，则添加
+                conn.execute(
+                    text('ALTER TABLE public_sentiment ADD COLUMN id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;')
+                )
+            else:
+                print("public_sentiment 表中已存在 id 列，跳过修改。")
+
         except Exception as e:
-            print(f"修改 comments 表时出现错误：{e}")
+            print(f"修改表时出现错误：{e}")
 
 
 if __name__ == '__main__':
