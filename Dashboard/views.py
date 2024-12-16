@@ -340,8 +340,10 @@ def sentiment_analysis(request):
     :return:
     """
     # 获取所有文章内容和评论内容
-    articles = Article.objects.all().values_list('content', flat=True)
-    comments = Comments.objects.all().values_list('content', flat=True)
+    articles = [article for article in Article.objects.all().values_list('content', flat=True) if
+                article and isinstance(article, str)]
+    comments = [comment for comment in Comments.objects.all().values_list('content', flat=True) if
+                comment and isinstance(comment, str)]
 
     stopwords = load_stopwords()
 
@@ -467,43 +469,46 @@ def get_data_views(request):
     :return:
     """
     # 返回表格数据
-    comments_content = list(Comments.objects.all().values_list('content', flat=True).order_by('created_at').reverse())
-    comments_region = list(Comments.objects.all().values_list('region', flat=True).order_by('created_at').reverse())
+    comments_content = [
+        comment for comment in Comments.objects.all().values_list('content', flat=True).order_by('created_at').reverse()
+        if comment and isinstance(comment, str)
+    ]
+    comments_region = list(
+        Comments.objects.all().values_list('region', flat=True).order_by('created_at').reverse()
+    )
     comments_sentiments_analysis = analyze_article_sentiment(comments_content)
-    comment_list = [{'comments_content': comment, 'sentiments_analysis': sentiment, 'comments_region': region} for
-                    comment, sentiment, region in
-                    zip(comments_content, comments_sentiments_analysis, comments_region)]
+    comment_list = [
+        {
+            'comments_content': comment,
+            'sentiments_analysis': sentiment,
+            'comments_region': region
+        }
+        for comment, sentiment, region in zip(comments_content, comments_sentiments_analysis, comments_region)
+    ]
 
     # 返回饼图数据
-    # 获取不同文章类型的占比
     article_type_data = Article.objects.values('type').annotate(type_count=Count('id'))
     article_type_list = [{'value': entry['type_count'], 'type': entry['type']} for entry in article_type_data]
 
     # 排名图
-    # 返回新闻类别
     news_data_analysis = getContentData()
-    # 统计新闻分类
     news_category_counts = Counter(label for _, label in ((list(item.items())[0]) for item in news_data_analysis))
 
     # 统计新闻词云图
-    news_contents = [key for key, _ in ((list(item.items())[0]) for item in news_data_analysis)]
+    news_contents = [
+        key for key, _ in ((list(item.items())[0]) for item in news_data_analysis)
+        if key and isinstance(key, str)
+    ]
     stop_words = load_stopwords()
-    # 对新闻进行分词并统计词频
     words = []
     for news_content in news_contents:
         for word in jieba.cut(news_content):
-            if word not in stop_words and re.match(r'^[\u4e00-\u9fa5]+$', word) and word not in ['了', '是', '在',
-                                                                                                 '的', '一个', '有',
-                                                                                                 '又', '也']:
+            if word not in stop_words and re.match(r'^[\u4e00-\u9fa5]+$', word) and word not in ['了', '是', '在', '的',
+                                                                                                 '一个', '有', '又',
+                                                                                                 '也']:
                 words.append(word)
-
-    # 对词语进行统计
     word_counts = Counter(words)
-
-    # 只取前十五条数据
     top_fifteen = dict(word_counts.most_common(15))
-
-    # 准备词云图数据，转换成字典数据
     news_wordcloud_data = [{'name': word, 'value': count} for word, count in top_fifteen.items()]
 
     # 返回胶囊图数据，新闻情感
@@ -565,7 +570,8 @@ def predict_fake_or_real(request):
 
     return JsonResponse({"error": "仅支持 POST 请求！"}, status=405)
 
-@csrf_exempt  # 禁用 CSRF 验证
+
+@csrf_exempt
 def auto_data_collection(request):
     """
     爬虫自动化
@@ -587,3 +593,76 @@ def auto_data_collection(request):
         return JsonResponse({"success": True}, status=200)
 
     return JsonResponse({"error": "仅支持 POST 请求！"}, status=405)
+
+
+# 加载模型和 Tokenizer
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+fraud_detection_tokenizer = BertTokenizer.from_pretrained('Dashboard/bert-fraud-detection')
+fraud_detection_model = BertForSequenceClassification.from_pretrained('Dashboard/bert-fraud-detection').to(device)
+fraud_category_tokenizer = BertTokenizer.from_pretrained('Dashboard/bert-fraud-category')
+fraud_category_model = BertForSequenceClassification.from_pretrained('Dashboard/bert-fraud-category').to(device)
+
+# 设置模型为评估模式
+fraud_detection_model.eval()
+fraud_category_model.eval()
+
+# 定义欺诈类别映射
+fraud_categories = {
+    0: "刷单返利类", 1: "虚假网络投资理财类", 2: "冒充电商物流客服类",
+    3: "贷款、代办信用卡类", 4: "网络游戏产品虚假交易类", 5: "虚假购物、服务类",
+    6: "冒充公检法及政府机关类", 7: "网黑案件", 8: "虚假征信类",
+    9: "冒充领导、熟人类", 10: "冒充军警购物类诈骗", 11: "网络婚恋、交友类（非虚假网络投资理财类）"
+}
+
+@csrf_exempt
+def predict_junk_information(request):
+    """
+    接收前端POST请求，进行欺诈信息检测和分类
+    """
+    if request.method == "POST":
+        try:
+            # 从请求中获取数据
+            data = json.loads(request.body)
+            text = data.get("text", "")
+
+            if not text:
+                return JsonResponse({"error": "文本不能为空"}, status=400)
+
+            # Step 1: 使用 'bert-fraud-detection' 判断是否是欺诈信息
+            detection_encoding = fraud_detection_tokenizer(
+                text, padding=True, truncation=True, max_length=128, return_tensors="pt"
+            ).to(device)
+
+            with torch.no_grad():
+                detection_outputs = fraud_detection_model(**detection_encoding)
+
+            detection_logits = detection_outputs.logits
+            is_fraud = torch.argmax(detection_logits, dim=1).item()
+
+            # 如果是正常信息，返回结果
+            if is_fraud == 0:
+                return JsonResponse({"result": "正常信息"}, status=200)
+
+            # Step 2: 如果是欺诈信息，分类预测
+            category_encoding = fraud_category_tokenizer(
+                text, padding=True, truncation=True, max_length=256, return_tensors="pt"
+            ).to(device)
+
+            with torch.no_grad():
+                category_outputs = fraud_category_model(**category_encoding)
+
+            category_logits = category_outputs.logits
+            predicted_category = torch.argmax(category_logits, dim=1).item()
+            fraud_category = fraud_categories.get(predicted_category, "未知类别")
+
+            # 返回分类结果
+            return JsonResponse({
+                "result": "欺诈信息",
+                "category": fraud_category,
+                "reason": f"模型检测到该文本与“{fraud_category}”相关的关键词或特定模式。"
+            }, status=200)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "仅支持POST请求"}, status=405)

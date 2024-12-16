@@ -46,4 +46,6 @@ urlpatterns = [
     path('predictFakeOrReal/', views.predict_fake_or_real, name="predict_fake_or_real"),
     # 新增爬虫自动化
     path('autoCollectData/', views.auto_data_collection, name='auto_data_collection'),
+    # 判断垃圾信息
+    path('predictJunkInformation/', views.predict_junk_information, name='predict_junk_information'),
 ]
