@@ -3,6 +3,7 @@ import json
 from django.core.paginator import Paginator
 from django.db.models.functions import Cast
 from django.views.decorators.csrf import csrf_exempt
+# from openai import OpenAI
 
 from .models import *
 from django.http import JsonResponse
@@ -17,6 +18,7 @@ import torch
 from Dashboard.spiders.main import main as CollectData
 from Dashboard.learning_model.main import first_step as GetWordFrequency
 from Dashboard.spiders.spiderHotSearch import get_hot_search_data as HotSearchData
+from Dashboard.spiders.spiderSearch import get_weibo_search_text, get_weibo_search_hot_query
 
 
 # Create your views here.
@@ -419,19 +421,31 @@ def article_content_word_cloud(request):
 
 def get_hot_search_data(request):
     """
-    热搜数据展示and热搜的情感分析
+    热搜数据展示 and 热搜的情感分析 + Flask AI 综合解读
     :param request:
     :return:
     """
-    hot_search_list = HotSearchData()
+    # 获取前 50 个热搜数据
+    hot_search_list = HotSearchData()[:50]
 
-    # 批量分析情感
+    # 提取内容
     words = [item['content'] for item in hot_search_list]
-    sentiments = analyze_article_sentiment(words)
 
-    # 将情感结果添加到列表中
+    # 批量情感分析
+    sentiments = analyze_article_sentiment(words)
     for i, sentiment in enumerate(sentiments):
         hot_search_list[i]['sentiment'] = sentiment
+
+    # 调用 Flask 新 AI 接口
+    flask_ai_url = "http://127.0.0.1:5000/analyze_hot_trends"
+    ai_response = {"ai_interpretation": "暂无解析结果"}  # 默认值
+
+    try:
+        response = requests.post(flask_ai_url, json={"hot_queries": words})
+        if response.status_code == 200:
+            ai_response = response.json()
+    except requests.RequestException as e:
+        print(f"调用 Flask AI 接口失败: {e}")
 
     # 统计情感数量
     sentiment_count = {
@@ -440,10 +454,12 @@ def get_hot_search_data(request):
         '负面': sum(1 for item in hot_search_list if item['sentiment'] == '负面')
     }
 
+    # 返回数据
     return JsonResponse({
         'total': len(hot_search_list),  # 数据总数
         'hot_search_data': hot_search_list,  # 所有热搜数据
         'sentiment_count': sentiment_count,  # 情感统计数量
+        'ai_interpretation': ai_response.get("ai_interpretation"),  # AI 综合解析结果
     })
 
 
@@ -614,6 +630,7 @@ fraud_categories = {
     9: "冒充领导、熟人类", 10: "冒充军警购物类诈骗", 11: "网络婚恋、交友类（非虚假网络投资理财类）"
 }
 
+
 @csrf_exempt
 def predict_junk_information(request):
     """
@@ -666,3 +683,73 @@ def predict_junk_information(request):
             return JsonResponse({"error": str(e)}, status=500)
 
     return JsonResponse({"error": "仅支持POST请求"}, status=405)
+
+
+def fetch_combined_ai_interpretation(hot_queries):
+    """
+    调用 Flask 服务，获取 Kimi AI 对热点话题的综合分析结果。
+    """
+    if not hot_queries:
+        return "暂无热点话题，无法生成解读。"
+    try:
+        # 向 Flask 服务发送 POST 请求
+        response = requests.post(
+            "http://127.0.0.1:5000/fetch_ai_interpretation",
+            json={"hot_queries": hot_queries},
+        )
+        response.raise_for_status()
+        return response.json().get("ai_interpretation", "AI 解读生成失败")
+    except Exception as e:
+        return f"AI 解读生成失败，原因：{str(e)}"
+
+
+@csrf_exempt
+def weibo_search_analysis(request):
+    """
+    Django 视图，用于处理微博搜索分析请求。
+    """
+    if request.method == 'POST':
+        data = json.loads(request.body.decode('utf-8'))
+        keyword = data.get('keyword', '')
+
+        if not keyword:
+            return JsonResponse({"error": "Keyword cannot be empty"}, status=400)
+
+        try:
+            # 获取微博文章和热点话题
+            weibo_articles = get_weibo_search_text(keyword)
+            hot_queries = get_weibo_search_hot_query(keyword)
+
+            # 调用情感分析函数
+            sentiments = analyze_article_sentiment(weibo_articles)
+            sentiment_counts = Counter(sentiments)
+
+            # 使用 Kimi AI 综合分析热点话题
+            ai_interpretation = fetch_combined_ai_interpretation(hot_queries[:15])
+
+            # 生成词云数据
+            stopwords = load_stopwords()
+            word_frequencies = Counter()
+            for article in weibo_articles:
+                words = jieba.lcut(article)
+                filtered_words = [word for word in words if word not in stopwords and len(word.strip()) > 1]
+                word_frequencies.update(filtered_words)
+
+            # 构造响应数据
+            return JsonResponse({
+                "hot_queries": [{"index": idx + 1, "content": query} for idx, query in enumerate(hot_queries[:15])],
+                "articles": [{"index": idx + 1, "content": article, "sentiment": sentiment}
+                             for idx, (article, sentiment) in enumerate(zip(weibo_articles[:10], sentiments[:10]))],
+                "ai_interpretation": ai_interpretation,
+                "sentiment_stats": {
+                    "positive": sentiment_counts["正面"],
+                    "neutral": sentiment_counts["中性"],
+                    "negative": sentiment_counts["负面"],
+                },
+                "word_frequencies": word_frequencies.most_common(100),
+            })
+
+        except Exception as e:
+            return JsonResponse({"error": f"Server error: {str(e)}"}, status=500)
+
+    return JsonResponse({"error": "Invalid request method"}, status=400)

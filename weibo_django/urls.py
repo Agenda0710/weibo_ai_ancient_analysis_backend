@@ -34,18 +34,20 @@ urlpatterns = [
     path('commentsAnalysis/', views.comments_analysis, name='comments_analysis'),
     # 获取第七页数据（舆情分析）
     path('sentimentAnalysis/', views.sentiment_analysis, name='sentiment_analysis'),
-    # 获取第八页数据（词云图）
+    # 获取第八页数据（微博文章词云图）
     path('articleContentWordCloud/', views.article_content_word_cloud, name='article_content_word_cloud'),
-    # 获取第九页数据
+    # 获取第九页数据（当前热搜+ai模型解读热搜）
     path('getHotSearchData/', views.get_hot_search_data, name='get_hot_search_data'),
-    # 获取第十页数据（央视新闻）
+    # 获取第十页数据（央视新闻）+新闻类别分类
     path('getCurrentNews/', views.get_current_news, name='get_current_news'),
-    # 新增大屏展示
+    # 新增大屏数据展示
     path('getDataViews/', views.get_data_views, name='get_data_views'),
-    # 新增虚假文章内容分析
+    # 新增虚假文章内容分析（谣言分析）
     path('predictFakeOrReal/', views.predict_fake_or_real, name="predict_fake_or_real"),
     # 新增爬虫自动化
     path('autoCollectData/', views.auto_data_collection, name='auto_data_collection'),
-    # 判断垃圾信息
+    # 判断垃圾信息+垃圾信息分类
     path('predictJunkInformation/', views.predict_junk_information, name='predict_junk_information'),
+    # 指定词分析+ai模型解读
+    path('weiboSearchAnalysis/', views.weibo_search_analysis, name='weibo_search_analysis'),
 ]
