@@ -38,7 +38,7 @@ urlpatterns = [
     path('articleContentWordCloud/', views.article_content_word_cloud, name='article_content_word_cloud'),
     # 获取第九页数据（当前热搜+ai模型解读热搜）
     path('getHotSearchData/', views.get_hot_search_data, name='get_hot_search_data'),
-    # 获取第十页数据（央视新闻）+新闻类别分类
+    # 获取第大模型数据（央视新闻）+新闻类别分类
     path('getCurrentNews/', views.get_current_news, name='get_current_news'),
     # 新增大屏数据展示
     path('getDataViews/', views.get_data_views, name='get_data_views'),

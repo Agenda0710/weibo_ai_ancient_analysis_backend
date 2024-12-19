@@ -465,16 +465,20 @@ def get_hot_search_data(request):
 
 def get_current_news(request):
     """
-    新闻页面的展示and新闻的分类
-    :param request:
-    :return:
+    新闻页面的展示和新闻的分类
+    :param request: HTTP 请求对象
+    :return: JSON 响应
     """
+    # 获取新闻数据及创建时间
     news_data_analysis = getContentData()
+
     # 统计新闻分类
-    category_counts = Counter(label for _, label in ((list(item.items())[0]) for item in news_data_analysis))
+    category_counts = Counter(item['label'] for item in news_data_analysis)
+
+    # 返回新闻内容、分类统计和创建时间
     return JsonResponse({
         'news_data_analysis': news_data_analysis,
-        'category_counts': category_counts
+        'category_counts': category_counts,
     })
 
 
