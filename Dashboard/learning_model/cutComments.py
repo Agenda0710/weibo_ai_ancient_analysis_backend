@@ -1,4 +1,4 @@
-from Dashboard.utils.getPublicData import getAllCommentData
+from Dashboard.utils.get_ai_weibo_articles_and_comments_data import get_all_ai_comments_data
 import jieba
 
 targetText = './cutComments.txt'
@@ -22,7 +22,7 @@ def seg_depart(sentence):
 
 def write_comment_cuts():
     with open(targetText, 'w', encoding='utf-8') as targetFile:
-        seg = jieba.cut(seg_depart(getAllCommentData()), cut_all=True)
+        seg = jieba.cut(seg_depart(get_all_ai_comments_data()), cut_all=True)
         output = ' '.join(seg)
         targetFile.write(output)
         targetFile.write('\n')

@@ -1,11 +1,11 @@
 from snownlp import SnowNLP
 import csv
-from Dashboard.utils.getPublicData import getAllCommentData
+from Dashboard.utils.get_ai_weibo_articles_and_comments_data import get_all_ai_comments_data
 
 
 def targetFile():
     targetFile = r'Dashboard/learning_model/target.csv'
-    commentList = getAllCommentData()
+    commentList = get_all_ai_comments_data()
 
     rateData = []
     good = 0

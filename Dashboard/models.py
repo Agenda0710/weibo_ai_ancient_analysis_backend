@@ -69,3 +69,39 @@ class WordFrequency(models.Model):
     class Meta:
         managed = False
         db_table = 'word_frequency'
+
+
+class AiArticles(models.Model):
+    id = models.BigIntegerField(primary_key=True)
+    likenum = models.BigIntegerField(db_column='likeNum', blank=True, null=True)  # Field name made lowercase.
+    commentnum = models.BigIntegerField(db_column='commentNum', blank=True, null=True)  # Field name made lowercase.
+    reposts_count = models.BigIntegerField(blank=True, null=True)
+    region = models.TextField(blank=True, null=True)
+    content = models.TextField(blank=True, null=True)
+    contentlength = models.BigIntegerField(db_column='contentLength', blank=True,
+                                           null=True)  # Field name made lowercase.
+    create_at = models.TextField(blank=True, null=True)
+    detailurl = models.TextField(db_column='detailUrl', blank=True, null=True)  # Field name made lowercase.
+    authorname = models.TextField(db_column='authorName', blank=True, null=True)  # Field name made lowercase.
+    authordetail = models.TextField(db_column='authorDetail', blank=True, null=True)  # Field name made lowercase.
+
+    class Meta:
+        managed = False
+        db_table = 'ai_articles'
+
+
+class AiComments(models.Model):
+    id = models.BigIntegerField(primary_key=True)
+    articleid = models.BigIntegerField(db_column='articleId', blank=True, null=True)  # Field name made lowercase.
+    created_at = models.TextField(blank=True, null=True)
+    like_counts = models.BigIntegerField(blank=True, null=True)
+    region = models.TextField(blank=True, null=True)
+    content = models.TextField(blank=True, null=True)
+    authorname = models.TextField(db_column='authorName', blank=True, null=True)  # Field name made lowercase.
+    authorgender = models.TextField(db_column='authorGender', blank=True, null=True)  # Field name made lowercase.
+    authoraddress = models.TextField(db_column='authorAddress', blank=True, null=True)  # Field name made lowercase.
+    authoravatar = models.TextField(db_column='authorAvatar', blank=True, null=True)  # Field name made lowercase.
+
+    class Meta:
+        managed = False
+        db_table = 'ai_comments'

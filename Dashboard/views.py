@@ -3,14 +3,10 @@ import json
 from django.core.paginator import Paginator
 from django.db.models.functions import Cast
 from django.views.decorators.csrf import csrf_exempt
-# from openai import OpenAI
-
 from .models import *
 from django.http import JsonResponse
 from django.db.models import Count, Max
 from collections import Counter, defaultdict
-import jieba
-from snownlp import SnowNLP
 from Dashboard.utils.sentimentAnalysis import *
 from Dashboard.spiders.spiderNews import *
 from transformers import BertTokenizer, BertForSequenceClassification
@@ -29,26 +25,42 @@ def get_article_statistics(request):
     :return:
     """
     # 获取文章总数
-    total_articles = Article.objects.count()
+    total_articles = AiArticles.objects.count()
 
     # 获取点赞量最高的文章的作者
-    top_liked_article = Article.objects.order_by('-likenum').first()
+    top_liked_article = AiArticles.objects.order_by('-likenum').first()
     top_liked_author = top_liked_article.authorname if top_liked_article else None
 
     # 获取发表文章最多的城市，跳过 region 为 null 的值
-    top_cities = Article.objects.exclude(region__isnull=True).values('region').annotate(
+    top_cities = AiArticles.objects.exclude(region__isnull=True).values('region').annotate(
         article_count=Count('id')).order_by('-article_count')[:2]
 
     # 将 create_at 转换为日期，假设你的日期格式为 'YYYY-MM-DD'
-    article_counts = Article.objects.annotate(
+    article_counts = AiArticles.objects.annotate(
         date=Cast('create_at', output_field=models.DateField())  # Cast 只能用于格式化正确的日期
     ).values('date').annotate(count=Count('id')).order_by('date')
 
-    # 获取不同文章类型的占比
-    article_type_data = Article.objects.values('type').annotate(type_count=Count('id'))
+    # 获取不同文章长度的占比
+    # 定义文章长度的区间
+    ranges = [
+        (0, 100),
+        (100, 200),
+        (200, 500),
+        (500, 1000),
+        (1000, 2000),
+    ]
 
-    # 获取评论区的用户名
-    usernames = Comments.objects.values_list('authorname', flat=True)
+    ai_article_word_length_list = []
+    for r in ranges:
+        count = AiArticles.objects.filter(contentlength__gte=r[0], contentlength__lt=r[1]).count()
+        ai_article_word_length_list.append({"value": count, "name": f"{r[0]}-{r[1]}"})
+
+    # 查询大于2000的文章数量
+    count_2000_plus = AiArticles.objects.filter(contentlength__gte=2000).count()
+    ai_article_word_length_list.append({"value": count_2000_plus, "name": "2000+"})
+
+    # 获取文章的用户名
+    usernames = AiArticles.objects.values_list('authorname', flat=True)
 
     # 定义要删除的高频词列表
     stop_words = load_stopwords()
@@ -58,7 +70,9 @@ def get_article_statistics(request):
     for username in usernames:
         for word in jieba.cut(username):
             if word not in stop_words:
-                words.append(word)
+                # 使用正则表达式判断是否为中文，中文的Unicode编码范围是[\u4e00-\u9fff]
+                if re.match(r'[\u4e00-\u9fff]+', word):
+                    words.append(word)
 
     # 对词语进行统计
     word_counts = Counter(words)
@@ -72,7 +86,6 @@ def get_article_statistics(request):
     # 准备数据
     dates = [item['date'].strftime('%Y-%m-%d') for item in article_counts]
     counts = [item['count'] for item in article_counts]
-    article_type_list = [{'value': entry['type_count'], 'name': entry['type']} for entry in article_type_data]
 
     if top_cities:
         top_city_name = top_cities[0]['region']
@@ -84,7 +97,7 @@ def get_article_statistics(request):
         top_city_name = top_cities[1]['region']
 
     # 获取点赞量最多的前四条评论
-    top_comments_list = Comments.objects.order_by('-like_counts')[:4].values('authorname', 'content', 'like_counts')
+    top_comments_list = AiComments.objects.order_by('-like_counts')[:4].values('authorname', 'content', 'like_counts')
 
     # 将 QuerySet 转换为列表
     top_comments_list = list(top_comments_list)
@@ -95,8 +108,8 @@ def get_article_statistics(request):
         'top_city': top_city_name,
         'top_comments_list': top_comments_list,
         'dates': dates,
+        'ai_article_word_length_list': ai_article_word_length_list,
         'counts': counts,
-        'article_type_data': article_type_list,
         'wordcloud_data': wordcloud_data,
     }
 
@@ -173,7 +186,7 @@ def get_articles_with_comments(request):
     page_size = request.GET.get('page_size', 6)  # 默认为每页6条数据
 
     # 获取所有文章并计算评论量
-    articles = Article.objects.annotate(comment_count=Count('comments'))
+    articles = AiArticles.objects.annotate(comment_count=Count('commentnum'))
 
     # 使用Paginator进行分页
     paginator = Paginator(articles, page_size)
@@ -188,7 +201,7 @@ def get_articles_with_comments(request):
             'reposts_count': article.reposts_count,
             'comment_count': article.comment_count,  # 评论量
             'like_count': article.likenum,
-            'type': article.type,
+            'content_length': article.contentlength,
             'content': article.content,
             'create_at': article.create_at,
             'detailUrl': article.detailurl,  # 文章详情页
