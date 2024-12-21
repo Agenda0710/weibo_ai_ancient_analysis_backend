@@ -151,14 +151,14 @@ def get_hot_words_statistics(request):
         page_size = request.GET.get('pageSize', 10)  # 每页显示多少数据，默认10条
 
         # 查询评论内容中包含 selectedWord 的评论
-        comments_query = Comments.objects.filter(content__icontains=selected_word)
+        comments_query = AiComments.objects.filter(content__icontains=selected_word)
         # 分页处理
         paginator = Paginator(comments_query, page_size)
         comments_page = paginator.get_page(page)
 
         # 将查询结果转换为字典列表，方便返回前端
         comments_list = [{
-            'articleId': comment.articleid_id,
+            'articleId': comment.articleid,
             'authorName': comment.authorname,
             'authorGender': comment.authorgender,
             'authorAddress': comment.authoraddress,
@@ -228,15 +228,16 @@ def article_analysis(request):
     :param request:
     :return:
     """
-    # 查询所有文章的类型并去重
-    article_types = Article.objects.values_list('type', flat=True).distinct()
-    selected_type = request.GET.get('type', None)
-
-    # 查询筛选后的文章
-    if selected_type:
-        articles = Article.objects.filter(type=selected_type)
-    else:
-        articles = Article.objects.all()
+    # # 查询所有文章的类型并去重
+    # article_types = Article.objects.values_list('type', flat=True).distinct()
+    # selected_type = request.GET.get('type', None)
+    #
+    # # 查询筛选后的文章
+    # if selected_type:
+    #     articles = Article.objects.filter(type=selected_type)
+    # else:
+    #     articles = Article.objects.all()
+    articles = AiArticles.objects.all()
 
     # 定义统计区间
     like_intervals = [(0, 1000), (1000, 2000), (2000, 3000), (3000, 5000), (5000, 10000), (10000, float('inf'))]
@@ -259,10 +260,10 @@ def article_analysis(request):
     repost_counts = get_interval_count(articles, 'reposts_count', repost_intervals)
 
     # 返回类型列表
-    return JsonResponse({'types': list(article_types),
-                         'like_counts': like_counts,
-                         'comment_counts': comment_counts,
-                         'repost_counts': repost_counts})
+    return JsonResponse({
+        'like_counts': like_counts,
+        'comment_counts': comment_counts,
+        'repost_counts': repost_counts})
 
 
 def region_analysis(request):
@@ -273,14 +274,14 @@ def region_analysis(request):
     """
     # 统计每个地区的文章数
     article_counts = (
-        Article.objects.values('region')  # 以地区分组
+        AiArticles.objects.values('region')  # 以地区分组
         .annotate(article_count=Count('id'))  # 统计每个地区的文章数
         .order_by('region')  # 排序
     )
 
     # 统计每个地区的评论数
     comment_counts = (
-        Comments.objects.values('region')  # 以地区分组
+        AiComments.objects.values('region')  # 以地区分组
         .annotate(comment_count=Count('articleid'))  # 统计每个地区的评论数
         .order_by('region')  # 排序
     )
@@ -313,7 +314,7 @@ def comments_analysis(request):
     interval = 20
 
     # 统计每个区间的评论数
-    like_bins = Comments.objects.values('like_counts').annotate(count=Count('id'))
+    like_bins = AiComments.objects.values('like_counts').annotate(count=Count('id'))
 
     # 整理数据到区间中
     bins = {}
@@ -334,12 +335,12 @@ def comments_analysis(request):
         })
 
     # 性别数据
-    gender_counts = Comments.objects.values_list('authorgender', flat=True)
+    gender_counts = AiComments.objects.values_list('authorgender', flat=True)
     gender_counter = Counter(gender_counts)
 
     # 获取词频数据
     word_frequencies = WordFrequency.objects.all().values('word', 'frequency')
-    word_data = [{'name': wf['word'], 'value': wf['frequency']} for wf in word_frequencies[:40]]
+    word_data = [{'name': wf['word'], 'value': wf['frequency']} for wf in word_frequencies[:35]]
 
     return JsonResponse({
         'data': response_data,
@@ -355,9 +356,9 @@ def sentiment_analysis(request):
     :return:
     """
     # 获取所有文章内容和评论内容
-    articles = [article for article in Article.objects.all().values_list('content', flat=True) if
+    articles = [article for article in AiArticles.objects.all().values_list('content', flat=True) if
                 article and isinstance(article, str)]
-    comments = [comment for comment in Comments.objects.all().values_list('content', flat=True) if
+    comments = [comment for comment in AiComments.objects.all().values_list('content', flat=True) if
                 comment and isinstance(comment, str)]
 
     stopwords = load_stopwords()
@@ -415,7 +416,7 @@ def article_content_word_cloud(request):
     stopwords = load_stopwords()
 
     # 获取文章内容 (假设文章存在数据库中)
-    articles = Article.objects.values_list('content', flat=True)
+    articles = AiArticles.objects.values_list('content', flat=True)
     full_text = ' '.join(articles)  # 将所有文章合并为一个字符串
 
     # 使用jieba进行分词
