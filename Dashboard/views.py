@@ -15,6 +15,7 @@ from Dashboard.spiders.main import main as CollectData
 from Dashboard.learning_model.main import first_step as GetWordFrequency
 from Dashboard.spiders.spiderHotSearch import get_hot_search_data as HotSearchData
 from Dashboard.spiders.spiderSearch import get_weibo_search_text, get_weibo_search_hot_query
+from .spider_ai.spider_ai_policies import get_ai_policies_information
 
 
 # Create your views here.
@@ -132,9 +133,9 @@ def get_hot_words_statistics(request):
         sentiment_score = SnowNLP(word).sentiments
 
         # 确定情感类型
-        if sentiment_score > 0.5:
+        if sentiment_score > 0.6:
             sentiment = "正面"
-        elif sentiment_score < 0.5:
+        elif sentiment_score < 0.4:
             sentiment = "负面"
         else:
             sentiment = "中性"
@@ -228,15 +229,6 @@ def article_analysis(request):
     :param request:
     :return:
     """
-    # # 查询所有文章的类型并去重
-    # article_types = Article.objects.values_list('type', flat=True).distinct()
-    # selected_type = request.GET.get('type', None)
-    #
-    # # 查询筛选后的文章
-    # if selected_type:
-    #     articles = Article.objects.filter(type=selected_type)
-    # else:
-    #     articles = Article.objects.all()
     articles = AiArticles.objects.all()
 
     # 定义统计区间
@@ -504,11 +496,12 @@ def get_data_views(request):
     """
     # 返回表格数据
     comments_content = [
-        comment for comment in Comments.objects.all().values_list('content', flat=True).order_by('created_at').reverse()
+        comment for comment in
+        AiComments.objects.all().values_list('content', flat=True).order_by('created_at').reverse()
         if comment and isinstance(comment, str)
     ]
     comments_region = list(
-        Comments.objects.all().values_list('region', flat=True).order_by('created_at').reverse()
+        AiComments.objects.all().values_list('region', flat=True).order_by('created_at').reverse()
     )
     comments_sentiments_analysis = analyze_article_sentiment(comments_content)
     comment_list = [
@@ -521,28 +514,56 @@ def get_data_views(request):
     ]
 
     # 返回饼图数据
-    article_type_data = Article.objects.values('type').annotate(type_count=Count('id'))
-    article_type_list = [{'value': entry['type_count'], 'type': entry['type']} for entry in article_type_data]
+    # 获取不同文章长度的占比
+    # 定义文章长度的区间
+    ranges = [
+        (0, 100),
+        (100, 200),
+        (200, 500),
+        (500, 1000),
+        (1000, 2000),
+    ]
+
+    ai_article_word_length_list = []
+    for r in ranges:
+        count = AiArticles.objects.filter(contentlength__gte=r[0], contentlength__lt=r[1]).count()
+        ai_article_word_length_list.append({"value": count, "name": f"{r[0]}-{r[1]}"})
+
+    # 查询大于2000的文章数量
+    count_2000_plus = AiArticles.objects.filter(contentlength__gte=2000).count()
+    ai_article_word_length_list.append({"value": count_2000_plus, "name": "2000+"})
 
     # 排名图
     news_data_analysis = getContentData()
-    news_category_counts = Counter(label for _, label in ((list(item.items())[0]) for item in news_data_analysis))
+    # 修正新闻类别统计问题
+    news_category_counts = Counter(item['label'] for item in news_data_analysis)
 
-    # 统计新闻词云图
+    # 修正新闻词云数据提取问题
     news_contents = [
-        key for key, _ in ((list(item.items())[0]) for item in news_data_analysis)
-        if key and isinstance(key, str)
+        item['news_data'] for item in news_data_analysis if item['news_data'] and isinstance(item['news_data'], str)
     ]
+
+    # 加载停用词
     stop_words = load_stopwords()
+
+    # 分词和过滤
     words = []
     for news_content in news_contents:
         for word in jieba.cut(news_content):
-            if word not in stop_words and re.match(r'^[\u4e00-\u9fa5]+$', word) and word not in ['了', '是', '在', '的',
-                                                                                                 '一个', '有', '又',
-                                                                                                 '也']:
+            if (
+                    word not in stop_words
+                    and re.match(r'^[\u4e00-\u9fa5]+$', word)  # 只匹配中文
+                    and word not in ['了', '是', '在', '的', '一个', '有', '又', '也']  # 自定义过滤词
+            ):
                 words.append(word)
+
+    # 统计词频
     word_counts = Counter(words)
+
+    # 提取词频前 15 的词
     top_fifteen = dict(word_counts.most_common(15))
+
+    # 生成词云图数据
     news_wordcloud_data = [{'name': word, 'value': count} for word, count in top_fifteen.items()]
 
     # 返回胶囊图数据，新闻情感
@@ -550,12 +571,12 @@ def get_data_views(request):
     news_sentiments_statistic = Counter(news_sentiments_analysis)
 
     # 返回翻牌器数据，统计微博文章和评论的数量
-    article_count = Article.objects.count()
-    comment_count = Comments.objects.count()
+    article_count = AiArticles.objects.count()
+    comment_count = AiComments.objects.count()
 
     return JsonResponse({
         'comment_list': comment_list,
-        'article_type_list': article_type_list,
+        'article_type_list': ai_article_word_length_list,
         'news_category_counts': news_category_counts,
         'news_wordcloud_data': news_wordcloud_data,
         'news_sentiments_statistic': news_sentiments_statistic,
@@ -771,3 +792,56 @@ def weibo_search_analysis(request):
             return JsonResponse({"error": f"Server error: {str(e)}"}, status=500)
 
     return JsonResponse({"error": "Invalid request method"}, status=400)
+
+
+def analyze_ai_policies(request):
+    """
+    获取人工智能相关政策，并分析，返回政策分类饼状图和词云数据
+    """
+    try:
+        # 获取政策信息
+        policies_data = get_ai_policies_information()
+
+        # 生成分类统计数据（用于饼状图）
+        categories = [policy["category"] for policy in policies_data]
+        category_counts = Counter(categories)
+        category_chart_data = [{"name": k, "value": v} for k, v in category_counts.items()]
+
+        # 调用 Flask 接口进行 AI 解读
+        flask_url = "http://127.0.0.1:5000/analyze_ai_policies"
+        response = requests.post(flask_url, json={"policies": policies_data})
+        response_data = response.json()
+
+        if response.status_code != 200:
+            return JsonResponse({"error": "AI 接口调用失败", "details": response_data}, status=500)
+
+        # 整理词云图数据
+        stop_words = load_stopwords()
+        stop_words.update(['的', '中共中央'])  # 添加更多停用词
+        policies_title = [policy['title'] for policy in policies_data]
+
+        # 政策标题进行词频统计
+        words = []
+        for policy_title in policies_title:
+            for word in jieba.cut(policy_title):
+                if word not in stop_words:
+                    if re.match(r'[\u4e00-\u9fff]+', word):
+                        words.append(word)
+
+        word_counter = Counter(words)
+
+        # 只取前十五条数据
+        top_fifteen = dict(word_counter.most_common(15))
+
+        word_cloud_data = [{"name": word, "value": count} for word, count in top_fifteen.items()]
+
+        # 返回数据
+        return JsonResponse({
+            "policies": policies_data,
+            "ai_analysis": response_data["ai_interpretation"],
+            "category_chart_data": category_chart_data,
+            "word_cloud_data": word_cloud_data
+        })
+
+    except Exception as e:
+        return JsonResponse({"error": f"服务器错误: {str(e)}"}, status=500)

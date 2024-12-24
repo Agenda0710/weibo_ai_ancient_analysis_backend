@@ -24,15 +24,15 @@ urlpatterns = [
     path('article_statistics/', views.get_article_statistics, name='get_article_statistics'),
     # 获取评论热词数据
     path('hotWords/', views.get_hot_words_statistics, name='get_hot_words_statistics'),
-    # 获取第三页（微博舆情统计)
+    # 获取第三页（ai相关的微博文章展示)
     path('articles/', views.get_articles_with_comments, name='articles_list'),
-    # 获取第四页（文章分析）
+    # 获取第四页（ai相关的微博文章，包含点赞量区间统计，评论量统计，转发量统计）
     path('articleAnalysis/', views.article_analysis, name='article_analysis'),
-    # 获取第五页数据（IP分析）
+    # 获取第五页数据（ai相关的微博和评论的IP地址分析）
     path('regionAnalysis/', views.region_analysis, name='region_analysis'),
-    # 获取第六页数据（评论分析）
+    # 获取第六页数据（评论分析，点赞区间的评论数统计图，性别比例，词云图）
     path('commentsAnalysis/', views.comments_analysis, name='comments_analysis'),
-    # 获取第七页数据（舆情分析）
+    # 获取第七页数据（舆情分析，微博文章的关键词情感分析以及热词情感趋势的树形图，微博文章内容和评论的舆情趋势饼状图，热词TOP10展示）
     path('sentimentAnalysis/', views.sentiment_analysis, name='sentiment_analysis'),
     # 获取第八页数据（微博文章词云图）
     path('articleContentWordCloud/', views.article_content_word_cloud, name='article_content_word_cloud'),
@@ -50,4 +50,6 @@ urlpatterns = [
     path('predictJunkInformation/', views.predict_junk_information, name='predict_junk_information'),
     # 指定词分析+ai模型解读
     path('weiboSearchAnalysis/', views.weibo_search_analysis, name='weibo_search_analysis'),
+
+    path('analyze_ai_policies/', views.analyze_ai_policies, name='analyze_ai_policies'),
 ]
