@@ -1,6 +1,7 @@
 import csv
 import requests
-from Dashboard.spiders.spiderNews import classify_news
+from transformers import BertTokenizer, BertForSequenceClassification
+import torch
 
 headers = {
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
@@ -11,6 +12,26 @@ headers = {
 url = 'https://sousuoht.www.gov.cn/athena/forward/2A40CF891850CF7ED2F0FA6369ECBB88?t=zhengce&timetype=timeqb&mintime=&maxtime=&sort=score&searchfield=&pcodeJiguan=&childtype=&subchildtype=&tsbq=&pubtimeyear=&puborg=&pcodeYear=&pcodeNum=&filetype=&n=5&inpro='
 
 policies_information = []
+# 类别映射
+category_map = {
+    0: '经济',
+    1: '国土规划与管理',
+    2: '教育',
+    3: '民生',
+    4: '生态环境',
+    5: '政治与行政',
+    6: '卫生健康',
+    7: '文化与社会',
+    8: '科技与创新',
+    9: '国防与安全',
+    10: '市场监管与法治'
+}
+
+# 加载预训练的中文 BERT 分词器和模型
+tokenizer = BertTokenizer.from_pretrained(r"D:\PythonProjects\weibo_django\Dashboard\bert-policy-category")
+model = BertForSequenceClassification.from_pretrained(r"D:\PythonProjects\weibo_django\Dashboard\bert-policy-category")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
 
 
 def get_ai_policies_information():
@@ -28,16 +49,28 @@ def get_ai_policies_information():
         for i in range(len(data_list)):
             time = data_list[i]['pubtimeStr']
             title = data_list[i]['title']
-            category = classify_news(title)
+            # 调用bert-policy-category进行预测
+            category = predict_category(title)
             policies_information.append({'time': time, 'title': title, 'category': category})
 
     return policies_information
 
 
-def write_to_csv(policies_information):
-    # 将政策名称保存到CSV文件
-    with open('policies.csv', mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerow(['time', 'title', 'category'])
-        for policy_information in policies_information:
-            writer.writerow([policy_information['time'], policy_information['title'], policy_information['category']])
+def predict_category(text):
+    # 对文本进行分词和编码
+    inputs = tokenizer(text, padding='max_length', truncation=True, max_length=256, return_tensors='pt').to(device)
+
+    # 进行预测
+    with torch.no_grad():
+        outputs = model(**inputs)
+
+    # 获取预测结果
+    logits = outputs.logits
+    predicted_class_id = torch.argmax(logits, dim=1).item()
+
+    # 返回类别名称
+    return category_map.get(predicted_class_id, '未知')
+
+
+if __name__ == '__main__':
+    get_ai_policies_information()

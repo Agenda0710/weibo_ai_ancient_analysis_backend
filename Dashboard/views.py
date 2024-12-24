@@ -809,11 +809,15 @@ def analyze_ai_policies(request):
 
         # 调用 Flask 接口进行 AI 解读
         flask_url = "http://127.0.0.1:5000/analyze_ai_policies"
-        response = requests.post(flask_url, json={"policies": policies_data})
-        response_data = response.json()
+        ai_answer = "暂未生成ai模型解读"  # 默认值
 
-        if response.status_code != 200:
-            return JsonResponse({"error": "AI 接口调用失败", "details": response_data}, status=500)
+        try:
+            response = requests.post(flask_url, json={"policies": policies_data}, timeout=5)
+            response.raise_for_status()
+            response_data = response.json()
+            ai_answer = response_data.get("ai_interpretation", "AI 解读生成失败")
+        except requests.exceptions.RequestException as e:
+            print(f"Flask 接口调用失败: {e}")  # 控制台打印错误信息
 
         # 整理词云图数据
         stop_words = load_stopwords()
@@ -825,20 +829,19 @@ def analyze_ai_policies(request):
         for policy_title in policies_title:
             for word in jieba.cut(policy_title):
                 if word not in stop_words:
-                    if re.match(r'[\u4e00-\u9fff]+', word):
+                    if re.match(r'[\u4e00-\u9fff]+', word):  # 只保留中文词
                         words.append(word)
 
         word_counter = Counter(words)
 
-        # 只取前十五条数据
-        top_fifteen = dict(word_counter.most_common(15))
-
-        word_cloud_data = [{"name": word, "value": count} for word, count in top_fifteen.items()]
+        # 只取前二十五条数据
+        top_twenty_five = dict(word_counter.most_common(25))
+        word_cloud_data = [{"name": word, "value": count} for word, count in top_twenty_five.items()]
 
         # 返回数据
         return JsonResponse({
             "policies": policies_data,
-            "ai_analysis": response_data["ai_interpretation"],
+            "ai_analysis": ai_answer,
             "category_chart_data": category_chart_data,
             "word_cloud_data": word_cloud_data
         })
