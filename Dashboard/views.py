@@ -812,7 +812,7 @@ def analyze_ai_policies(request):
         ai_answer = "暂未生成ai模型解读"  # 默认值
 
         try:
-            response = requests.post(flask_url, json={"policies": policies_data}, timeout=5)
+            response = requests.post(flask_url, json={"policies": policies_data})
             response.raise_for_status()
             response_data = response.json()
             ai_answer = response_data.get("ai_interpretation", "AI 解读生成失败")
