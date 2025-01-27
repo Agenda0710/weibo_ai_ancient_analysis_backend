@@ -50,6 +50,8 @@ urlpatterns = [
     path('predictJunkInformation/', views.predict_junk_information, name='predict_junk_information'),
     # 指定词分析+ai模型解读
     path('weiboSearchAnalysis/', views.weibo_search_analysis, name='weibo_search_analysis'),
-
+    # 政策分析
     path('analyze_ai_policies/', views.analyze_ai_policies, name='analyze_ai_policies'),
+    #
+    path('tech-hotspot-graph/', views.get_tech_hotspot_graph, name='tech_hotspot_graph')
 ]

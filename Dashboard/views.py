@@ -16,6 +16,9 @@ from Dashboard.learning_model.main import first_step as GetWordFrequency
 from Dashboard.spiders.spiderHotSearch import get_hot_search_data as HotSearchData
 from Dashboard.spiders.spiderSearch import get_weibo_search_text, get_weibo_search_hot_query
 from .spider_ai.spider_ai_policies import get_ai_policies_information
+from sklearn.feature_extraction.text import TfidfVectorizer
+import jieba
+import networkx as nx
 
 
 # Create your views here.
@@ -848,3 +851,109 @@ def analyze_ai_policies(request):
 
     except Exception as e:
         return JsonResponse({"error": f"服务器错误: {str(e)}"}, status=500)
+
+
+def load_custom_stopwords():
+    """
+    返回手动定义的停用词列表
+    """
+    return [
+        "一个", "一些", "可以", "我们", "你们", "他们", "自己", "这样", "这样子",
+        "没有", "因为", "所以", "但是", "而且", "如果", "还是", "那么", "然后",
+        "以及", "已经", "很多", "关于", "其中", "通过", "这种", "这种情况",
+        "不同", "时候", "之后", "之前", "成为", "所有", "根据", "方面", "目前",
+        "什么", "如何", "是否", "以及", "那么", "由于", "发布"
+    ]
+
+
+def extract_keywords(texts, top_n=30):
+    """
+    使用TF-IDF提取关键词，并筛除停用词
+    :param texts: 文本列表
+    :param top_n: 提取的关键词数量
+    :return: 关键词列表
+    """
+    # 加载手动定义的停用词
+    stopwords = set(load_custom_stopwords())
+
+    # 使用jieba分词，手动去除停用词
+    processed_texts = []
+    for text in texts:
+        words = jieba.lcut(text)
+        filtered_words = [word for word in words if word not in stopwords and word.strip()]
+        processed_texts.append(" ".join(filtered_words))
+
+    # 手动清洗后的文本不再依赖TfidfVectorizer的stop_words参数
+    vectorizer = TfidfVectorizer(max_features=top_n)
+    tfidf_matrix = vectorizer.fit_transform(processed_texts)
+    feature_names = vectorizer.get_feature_names_out()
+
+    # 进一步筛除停用词（保证安全性）
+    final_keywords = [word for word in feature_names if word not in stopwords]
+
+    return final_keywords
+
+
+def build_co_occurrence_network(texts, keywords, min_co_occurrence=3):
+    """
+    构建关键词共现网络，过滤低频共现的边
+    :param texts: 文本列表
+    :param keywords: 关键词列表
+    :param min_co_occurrence: 最低共现次数
+    :return: 精简后的共现网络图
+    """
+    co_occurrence_graph = nx.Graph()
+
+    # 初始化关键词节点
+    for keyword in keywords:
+        co_occurrence_graph.add_node(keyword)
+
+    # 统计关键词共现次数
+    for text in texts:
+        words_in_text = jieba.lcut(text)
+        for i in range(len(words_in_text)):
+            if words_in_text[i] in keywords:
+                for j in range(i + 1, len(words_in_text)):
+                    if words_in_text[j] in keywords:
+                        if co_occurrence_graph.has_edge(words_in_text[i], words_in_text[j]):
+                            co_occurrence_graph[words_in_text[i]][words_in_text[j]]['weight'] += 1
+                        else:
+                            co_occurrence_graph.add_edge(words_in_text[i], words_in_text[j], weight=1)
+
+    # 过滤掉低于 min_co_occurrence 次的边
+    edges_to_remove = [(u, v) for u, v, d in co_occurrence_graph.edges(data=True) if d['weight'] < min_co_occurrence]
+    co_occurrence_graph.remove_edges_from(edges_to_remove)
+
+    return co_occurrence_graph
+
+
+def generate_network_data(graph):
+    """
+    生成图谱数据
+    :param graph: 共现网络图
+    :return: 图谱数据（节点和边）
+    """
+    nodes = [{"id": node, "label": node, "value": graph.degree(node)} for node in graph.nodes()]
+    edges = [{"from": edge[0], "to": edge[1], "value": graph[edge[0]][edge[1]]['weight']} for edge in graph.edges()]
+
+    return {"nodes": nodes, "edges": edges}
+
+
+def get_tech_hotspot_graph(request):
+    """
+    获取技术热点图谱数据
+    """
+    # 从数据库中获取文章内容
+    articles = AiArticles.objects.values_list('content', flat=True)
+    texts = [article for article in articles if article and isinstance(article, str)]
+
+    # 提取关键词
+    keywords = extract_keywords(texts, top_n=10)
+
+    important_keywords = keywords[:30]  # 仅选择前30个最重要的关键词
+    co_occurrence_graph = build_co_occurrence_network(texts, important_keywords)
+
+    # 生成图谱数据
+    graph_data = generate_network_data(co_occurrence_graph)
+
+    return JsonResponse(graph_data)
