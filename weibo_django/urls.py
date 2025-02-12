@@ -21,7 +21,7 @@ from Dashboard import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     # 获取首页数据
-    path('article_statistics/', views.get_article_statistics, name='get_article_statistics'),
+    path('articleStatistics/', views.get_article_statistics, name='get_article_statistics'),
     # 获取评论热词数据
     path('hotWords/', views.get_hot_words_statistics, name='get_hot_words_statistics'),
     # 获取第三页（ai相关的微博文章展示)
@@ -51,7 +51,7 @@ urlpatterns = [
     # 指定词分析+ai模型解读
     path('weiboSearchAnalysis/', views.weibo_search_analysis, name='weibo_search_analysis'),
     # 政策分析
-    path('analyze_ai_policies/', views.analyze_ai_policies, name='analyze_ai_policies'),
+    path('analyzeAiPolicies/', views.analyze_ai_policies, name='analyze_ai_policies'),
     #
-    path('tech-hotspot-graph/', views.get_tech_hotspot_graph, name='tech_hotspot_graph')
+    path('techHotspotGraph/', views.get_tech_hotspot_graph, name='tech_hotspot_graph')
 ]
