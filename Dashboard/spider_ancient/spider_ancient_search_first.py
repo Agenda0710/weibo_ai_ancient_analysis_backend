@@ -16,7 +16,7 @@ def get_ancient_article_ids():
     ids = []
     for i in range(1, 10):
         params = {
-            'q': '中国古代科学',
+            'q': '中国古代文学',
             'page': i
         }
         # 发起请求

@@ -29,18 +29,18 @@ def get_article_statistics(request):
     :return:
     """
     # 获取文章总数
-    total_articles = AiArticles.objects.count()
+    total_articles = AncientArticles.objects.count()
 
     # 获取点赞量最高的文章的作者
-    top_liked_article = AiArticles.objects.order_by('-likenum').first()
+    top_liked_article = AncientArticles.objects.order_by('-likenum').first()
     top_liked_author = top_liked_article.authorname if top_liked_article else None
 
     # 获取发表文章最多的城市，跳过 region 为 null 的值
-    top_cities = AiArticles.objects.exclude(region__isnull=True).values('region').annotate(
+    top_cities = AncientArticles.objects.exclude(region__isnull=True).values('region').annotate(
         article_count=Count('id')).order_by('-article_count')[:2]
 
     # 将 create_at 转换为日期，假设你的日期格式为 'YYYY-MM-DD'
-    article_counts = AiArticles.objects.annotate(
+    article_counts = AncientArticles.objects.annotate(
         date=Cast('create_at', output_field=models.DateField())  # Cast 只能用于格式化正确的日期
     ).values('date').annotate(count=Count('id')).order_by('date')
 
@@ -56,11 +56,11 @@ def get_article_statistics(request):
 
     ai_article_word_length_list = []
     for r in ranges:
-        count = AiArticles.objects.filter(contentlength__gte=r[0], contentlength__lt=r[1]).count()
+        count = AncientArticles.objects.filter(contentlength__gte=r[0], contentlength__lt=r[1]).count()
         ai_article_word_length_list.append({"value": count, "name": f"{r[0]}-{r[1]}"})
 
     # 查询大于2000的文章数量
-    count_2000_plus = AiArticles.objects.filter(contentlength__gte=2000).count()
+    count_2000_plus = AncientArticles.objects.filter(contentlength__gte=2000).count()
     ai_article_word_length_list.append({"value": count_2000_plus, "name": "2000+"})
 
     # 获取文章的用户名
@@ -101,7 +101,7 @@ def get_article_statistics(request):
         top_city_name = top_cities[1]['region']
 
     # 获取点赞量最多的前四条评论
-    top_comments_list = AiComments.objects.order_by('-like_counts')[:4].values('authorname', 'content', 'like_counts')
+    top_comments_list = AncientComments.objects.order_by('-like_counts')[:4].values('authorname', 'content', 'like_counts')
 
     # 将 QuerySet 转换为列表
     top_comments_list = list(top_comments_list)
@@ -155,7 +155,7 @@ def get_hot_words_statistics(request):
         page_size = request.GET.get('pageSize', 10)  # 每页显示多少数据，默认10条
 
         # 查询评论内容中包含 selectedWord 的评论
-        comments_query = AiComments.objects.filter(content__icontains=selected_word)
+        comments_query = AncientComments.objects.filter(content__icontains=selected_word)
         # 分页处理
         paginator = Paginator(comments_query, page_size)
         comments_page = paginator.get_page(page)
@@ -232,7 +232,7 @@ def article_analysis(request):
     :param request:
     :return:
     """
-    articles = AiArticles.objects.all()
+    articles = AncientArticles.objects.all()
 
     # 定义统计区间
     like_intervals = [(0, 1000), (1000, 2000), (2000, 3000), (3000, 5000), (5000, 10000), (10000, float('inf'))]
@@ -276,7 +276,7 @@ def region_analysis(request):
 
     # 统计每个地区的评论数
     comment_counts = (
-        AiComments.objects.values('region')  # 以地区分组
+        AncientComments.objects.values('region')  # 以地区分组
         .annotate(comment_count=Count('articleid'))  # 统计每个地区的评论数
         .order_by('region')  # 排序
     )
@@ -309,7 +309,7 @@ def comments_analysis(request):
     interval = 20
 
     # 统计每个区间的评论数
-    like_bins = AiComments.objects.values('like_counts').annotate(count=Count('id'))
+    like_bins = AncientComments.objects.values('like_counts').annotate(count=Count('id'))
 
     # 整理数据到区间中
     bins = {}
@@ -330,7 +330,7 @@ def comments_analysis(request):
         })
 
     # 性别数据
-    gender_counts = AiComments.objects.values_list('authorgender', flat=True)
+    gender_counts = AncientComments.objects.values_list('authorgender', flat=True)
     gender_counter = Counter(gender_counts)
 
     # 获取词频数据
@@ -353,7 +353,7 @@ def sentiment_analysis(request):
     # 获取所有文章内容和评论内容
     articles = [article for article in AiArticles.objects.all().values_list('content', flat=True) if
                 article and isinstance(article, str)]
-    comments = [comment for comment in AiComments.objects.all().values_list('content', flat=True) if
+    comments = [comment for comment in AncientComments.objects.all().values_list('content', flat=True) if
                 comment and isinstance(comment, str)]
 
     stopwords = load_stopwords()

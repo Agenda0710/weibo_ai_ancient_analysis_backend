@@ -44,12 +44,9 @@ def alter_tables():
         try:
             # 如果 ancient_comments 表存在，则增加 id 列为自增主键（如果不存在）
             if table_exists('ancient_comments'):
-                if not column_exists('ancient_comments', 'id'):
-                    conn.execute(
-                        text('ALTER TABLE ancient_comments ADD COLUMN id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;'))
-                    print("修改表 ancient_comments 成功")
-                else:
-                    print("ancient_comments 表中已存在 id 列，无需修改")
+                conn.execute(text('alter table ancient_comments drop column id;'))
+                conn.execute(text('ALTER TABLE ancient_comments ADD COLUMN id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;'))
+                print("ancient_comments 表中已添加 id 列并设置为主键")
             else:
                 print("表 ancient_comments 不存在，跳过修改")
         except Exception as e:
@@ -107,10 +104,10 @@ def main():
     get_ancient_articles(ids)
     print('爬取文章相关评论')
     get_ancient_comments()
-    # print('正在存储数据...')
-    # save_to_sql()
-    # print('正在修改表结构...')
-    # alter_tables()
+    print('正在存储数据...')
+    save_to_sql()
+    print('正在修改表结构...')
+    alter_tables()
 
 
 if __name__ == '__main__':
