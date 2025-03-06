@@ -140,3 +140,13 @@ class AncientComments(models.Model):
     class Meta:
         managed = False
         db_table = 'ancient_comments'
+
+
+class WordFrequencyAncient(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    word = models.TextField(blank=True, null=True)
+    frequency = models.BigIntegerField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'word_frequency_ancient'

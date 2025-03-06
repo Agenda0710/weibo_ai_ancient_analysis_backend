@@ -64,7 +64,7 @@ def get_article_statistics(request):
     ai_article_word_length_list.append({"value": count_2000_plus, "name": "2000+"})
 
     # 获取文章的用户名
-    usernames = AiArticles.objects.values_list('authorname', flat=True)
+    usernames = AncientArticles.objects.values_list('authorname', flat=True)
 
     # 定义要删除的高频词列表
     stop_words = load_stopwords()
@@ -126,7 +126,7 @@ def get_hot_words_statistics(request):
     :param request:
     :return:
     """
-    word_frequency_data = WordFrequency.objects.all()
+    word_frequency_data = WordFrequencyAncient.objects.all()
 
     # 处理词频数据并进行情感分析
     hot_words_list = []
@@ -190,7 +190,7 @@ def get_articles_with_comments(request):
     page_size = request.GET.get('page_size', 6)  # 默认为每页6条数据
 
     # 获取所有文章并计算评论量
-    articles = AiArticles.objects.annotate(comment_count=Count('commentnum'))
+    articles = AncientArticles.objects.annotate(comment_count=Count('commentnum'))
 
     # 使用Paginator进行分页
     paginator = Paginator(articles, page_size)
@@ -269,7 +269,7 @@ def region_analysis(request):
     """
     # 统计每个地区的文章数
     article_counts = (
-        AiArticles.objects.values('region')  # 以地区分组
+        AncientArticles.objects.values('region')  # 以地区分组
         .annotate(article_count=Count('id'))  # 统计每个地区的文章数
         .order_by('region')  # 排序
     )
@@ -334,7 +334,7 @@ def comments_analysis(request):
     gender_counter = Counter(gender_counts)
 
     # 获取词频数据
-    word_frequencies = WordFrequency.objects.all().values('word', 'frequency')
+    word_frequencies = WordFrequencyAncient.objects.all().values('word', 'frequency')
     word_data = [{'name': wf['word'], 'value': wf['frequency']} for wf in word_frequencies[:35]]
 
     return JsonResponse({
@@ -351,7 +351,7 @@ def sentiment_analysis(request):
     :return:
     """
     # 获取所有文章内容和评论内容
-    articles = [article for article in AiArticles.objects.all().values_list('content', flat=True) if
+    articles = [article for article in AncientArticles.objects.all().values_list('content', flat=True) if
                 article and isinstance(article, str)]
     comments = [comment for comment in AncientComments.objects.all().values_list('content', flat=True) if
                 comment and isinstance(comment, str)]
@@ -411,7 +411,7 @@ def article_content_word_cloud(request):
     stopwords = load_stopwords()
 
     # 获取文章内容 (假设文章存在数据库中)
-    articles = AiArticles.objects.values_list('content', flat=True)
+    articles = AncientArticles.objects.values_list('content', flat=True)
     full_text = ' '.join(articles)  # 将所有文章合并为一个字符串
 
     # 使用jieba进行分词
@@ -529,11 +529,11 @@ def get_data_views(request):
 
     ai_article_word_length_list = []
     for r in ranges:
-        count = AiArticles.objects.filter(contentlength__gte=r[0], contentlength__lt=r[1]).count()
+        count = AncientArticles.objects.filter(contentlength__gte=r[0], contentlength__lt=r[1]).count()
         ai_article_word_length_list.append({"value": count, "name": f"{r[0]}-{r[1]}"})
 
     # 查询大于2000的文章数量
-    count_2000_plus = AiArticles.objects.filter(contentlength__gte=2000).count()
+    count_2000_plus = AncientArticles.objects.filter(contentlength__gte=2000).count()
     ai_article_word_length_list.append({"value": count_2000_plus, "name": "2000+"})
 
     # 排名图
@@ -574,7 +574,7 @@ def get_data_views(request):
     news_sentiments_statistic = Counter(news_sentiments_analysis)
 
     # 返回翻牌器数据，统计微博文章和评论的数量
-    article_count = AiArticles.objects.count()
+    article_count = AncientArticles.objects.count()
     comment_count = AiComments.objects.count()
 
     return JsonResponse({
@@ -944,7 +944,7 @@ def get_tech_hotspot_graph(request):
     获取技术热点图谱数据
     """
     # 从数据库中获取文章内容
-    articles = AiArticles.objects.values_list('content', flat=True)
+    articles = AncientArticles.objects.values_list('content', flat=True)
     texts = [article for article in articles if article and isinstance(article, str)]
 
     # 提取关键词

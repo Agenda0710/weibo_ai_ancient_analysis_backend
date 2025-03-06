@@ -1,9 +1,9 @@
 import jieba
 
-from Dashboard.utils.get_ai_weibo_articles_and_comments_data import get_all_ai_comments_data
+from Dashboard.separate_sentences.get_ancient_weibo_articles_and_comments_data import get_all_ancient_comments_data
 
 # 分词结果保存路径
-targetText = './cut_ai_comments.txt'
+targetText = './cut_ancient_comments.txt'
 
 
 def stop_words_list():
@@ -26,9 +26,9 @@ def seg_depart(sentence_list):
     return "\n".join(processed_sentences)
 
 
-def write_ai_articles_cuts():
+def write_ancient_articles_cuts():
     """从评论中分词并写入目标文件"""
-    comments = get_all_ai_comments_data()  # 获取所有评论数据
+    comments = get_all_ancient_comments_data()  # 获取所有评论数据
 
     # 假设评论内容在第五列
     comments_content = [comment[5] for comment in comments if len(comment) > 5 and comment[5]]

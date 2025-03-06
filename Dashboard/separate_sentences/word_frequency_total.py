@@ -41,8 +41,8 @@ def save_word_frequency(word_counter, output_file, top_n=100):
 
 def main():
     stop_words = load_stop_words()
-    word_counter = process_text('./cut_ai_comments.txt', stop_words)
-    save_word_frequency(word_counter, './word_frequency_total.csv')
+    word_counter = process_text('./cut_ancient_comments.txt', stop_words)
+    save_word_frequency(word_counter, './word_frequency_ancient.csv')
 
 
 if __name__ == '__main__':

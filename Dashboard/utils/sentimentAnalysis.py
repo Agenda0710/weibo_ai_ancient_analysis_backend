@@ -8,7 +8,7 @@ import torch
 
 # 加载停用词表
 def load_stopwords():
-    stopwords_path = 'Dashboard/learning_model/cn_stopwords.txt'
+    stopwords_path = 'D:\PythonProjects\weibo_django\Dashboard\separate_sentences\cn_stopwords.txt'
     with open(stopwords_path, 'r', encoding='utf-8') as f:
         for line in f:
             stopwords = set(line.strip())
@@ -96,4 +96,7 @@ def analyze_article_sentiment(texts, batch_size=16):
         torch.cuda.empty_cache()  # 清理未使用的显存
 
     return sentiment_labels  # 返回情感标签的列表
+
+if __name__ == '__main__':
+    load_stopwords()
 
