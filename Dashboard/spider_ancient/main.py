@@ -107,10 +107,10 @@ def main():
     get_ancient_articles(ids)
     print('爬取文章相关评论')
     get_ancient_comments()
-    print('正在存储数据...')
-    save_to_sql()
-    print('正在修改表结构...')
-    alter_tables()
+    # print('正在存储数据...')
+    # save_to_sql()
+    # print('正在修改表结构...')
+    # alter_tables()
 
 
 if __name__ == '__main__':
