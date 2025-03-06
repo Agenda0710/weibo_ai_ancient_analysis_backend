@@ -6,21 +6,23 @@ from Dashboard.separate_sentences.get_ancient_weibo_articles_and_comments_data i
 targetText = './cut_ancient_comments.txt'
 
 
-def stop_words_list():
+def load_stopwords():
     """加载停用词列表"""
-    return [line.strip() for line in open('./cn_stopwords.txt', 'r', encoding='utf-8').readlines()]
+    stopwords_path = './cn_stopwords.txt'
+    with open(stopwords_path, 'r', encoding='utf-8') as f:
+        return set(line.strip() for line in f if line.strip())
 
 
 def seg_depart(sentence_list):
     """分词并去除停用词"""
-    stop_words = stop_words_list()
+    stop_words = load_stopwords()  # 加载停用词
     processed_sentences = []
 
     for sentence in sentence_list:
         # 分词
         words = jieba.cut(sentence.strip())
         # 去停用词
-        filtered_words = [word for word in words if word not in stop_words and len(word) > 1]
+        filtered_words = [word for word in words if word.strip() not in stop_words and len(word.strip()) > 1]
         processed_sentences.append(" ".join(filtered_words))
 
     return "\n".join(processed_sentences)

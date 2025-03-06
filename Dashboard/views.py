@@ -15,7 +15,7 @@ from Dashboard.spiders.main import main as CollectData
 from Dashboard.learning_model.main import first_step as GetWordFrequency
 from Dashboard.spiders.spiderHotSearch import get_hot_search_data as HotSearchData
 from Dashboard.spiders.spiderSearch import get_weibo_search_text, get_weibo_search_hot_query
-from .spider_ai.spider_ai_policies import get_ai_policies_information
+# from .spider_ai.spider_ai_policies import get_ai_policies_information
 from sklearn.feature_extraction.text import TfidfVectorizer
 import jieba
 import networkx as nx
@@ -67,7 +67,7 @@ def get_article_statistics(request):
     usernames = AncientArticles.objects.values_list('authorname', flat=True)
 
     # 定义要删除的高频词列表
-    stop_words = load_stopwords()
+    stop_words = ('人', '我')
 
     # 对用户名进行分词并统计词频
     words = []
@@ -101,7 +101,8 @@ def get_article_statistics(request):
         top_city_name = top_cities[1]['region']
 
     # 获取点赞量最多的前四条评论
-    top_comments_list = AncientComments.objects.order_by('-like_counts')[:4].values('authorname', 'content', 'like_counts')
+    top_comments_list = AncientComments.objects.order_by('-like_counts')[:4].values('authorname', 'content',
+                                                                                    'like_counts')
 
     # 将 QuerySet 转换为列表
     top_comments_list = list(top_comments_list)
@@ -235,9 +236,9 @@ def article_analysis(request):
     articles = AncientArticles.objects.all()
 
     # 定义统计区间
-    like_intervals = [(0, 1000), (1000, 2000), (2000, 3000), (3000, 5000), (5000, 10000), (10000, float('inf'))]
-    comment_intervals = [(0, 1000), (1000, 2000), (2000, 3000), (3000, 5000), (5000, float('inf'))]
-    repost_intervals = [(0, 1000), (1000, 2000), (2000, 3000), (3000, 5000), (5000, float('inf'))]
+    like_intervals = [(0, 100), (100, 200), (200, 300), (300, 500), (500, 1000), (1000, float('inf'))]
+    comment_intervals = [(0, 100), (100, 200), (200, 300), (300, 500), (500, float('inf'))]
+    repost_intervals = [(0, 100), (100, 200), (200, 300), (300, 500), (500, float('inf'))]
 
     # 统计点赞量、评论量、转发量
     def get_interval_count(articles, field, intervals):
@@ -797,60 +798,60 @@ def weibo_search_analysis(request):
     return JsonResponse({"error": "Invalid request method"}, status=400)
 
 
-def analyze_ai_policies(request):
-    """
-    获取人工智能相关政策，并分析，返回政策分类饼状图和词云数据
-    """
-    try:
-        # 获取政策信息
-        policies_data = get_ai_policies_information()
-
-        # 生成分类统计数据（用于饼状图）
-        categories = [policy["category"] for policy in policies_data]
-        category_counts = Counter(categories)
-        category_chart_data = [{"name": k, "value": v} for k, v in category_counts.items()]
-
-        # 调用 Flask 接口进行 AI 解读
-        flask_url = "http://127.0.0.1:5000/analyze_ai_policies"
-        ai_answer = "暂未生成ai模型解读"  # 默认值
-
-        try:
-            response = requests.post(flask_url, json={"policies": policies_data})
-            response.raise_for_status()
-            response_data = response.json()
-            ai_answer = response_data.get("ai_interpretation", "AI 解读生成失败")
-        except requests.exceptions.RequestException as e:
-            print(f"Flask 接口调用失败: {e}")  # 控制台打印错误信息
-
-        # 整理词云图数据
-        stop_words = load_stopwords()
-        stop_words.update(['的', '中共中央'])  # 添加更多停用词
-        policies_title = [policy['title'] for policy in policies_data]
-
-        # 政策标题进行词频统计
-        words = []
-        for policy_title in policies_title:
-            for word in jieba.cut(policy_title):
-                if word not in stop_words:
-                    if re.match(r'[\u4e00-\u9fff]+', word):  # 只保留中文词
-                        words.append(word)
-
-        word_counter = Counter(words)
-
-        # 只取前二十五条数据
-        top_twenty_five = dict(word_counter.most_common(25))
-        word_cloud_data = [{"name": word, "value": count} for word, count in top_twenty_five.items()]
-
-        # 返回数据
-        return JsonResponse({
-            "policies": policies_data,
-            "ai_analysis": ai_answer,
-            "category_chart_data": category_chart_data,
-            "word_cloud_data": word_cloud_data
-        })
-
-    except Exception as e:
-        return JsonResponse({"error": f"服务器错误: {str(e)}"}, status=500)
+# def analyze_ai_policies(request):
+#     """
+#     获取人工智能相关政策，并分析，返回政策分类饼状图和词云数据
+#     """
+#     try:
+#         # 获取政策信息
+#         # policies_data = get_ai_policies_information()
+#
+#         # 生成分类统计数据（用于饼状图）
+#         categories = [policy["category"] for policy in policies_data]
+#         category_counts = Counter(categories)
+#         category_chart_data = [{"name": k, "value": v} for k, v in category_counts.items()]
+#
+#         # 调用 Flask 接口进行 AI 解读
+#         flask_url = "http://127.0.0.1:5000/analyze_ai_policies"
+#         ai_answer = "暂未生成ai模型解读"  # 默认值
+#
+#         try:
+#             response = requests.post(flask_url, json={"policies": policies_data})
+#             response.raise_for_status()
+#             response_data = response.json()
+#             ai_answer = response_data.get("ai_interpretation", "AI 解读生成失败")
+#         except requests.exceptions.RequestException as e:
+#             print(f"Flask 接口调用失败: {e}")  # 控制台打印错误信息
+#
+#         # 整理词云图数据
+#         stop_words = load_stopwords()
+#         stop_words.update(['的', '中共中央'])  # 添加更多停用词
+#         policies_title = [policy['title'] for policy in policies_data]
+#
+#         # 政策标题进行词频统计
+#         words = []
+#         for policy_title in policies_title:
+#             for word in jieba.cut(policy_title):
+#                 if word not in stop_words:
+#                     if re.match(r'[\u4e00-\u9fff]+', word):  # 只保留中文词
+#                         words.append(word)
+#
+#         word_counter = Counter(words)
+#
+#         # 只取前二十五条数据
+#         top_twenty_five = dict(word_counter.most_common(25))
+#         word_cloud_data = [{"name": word, "value": count} for word, count in top_twenty_five.items()]
+#
+#         # 返回数据
+#         return JsonResponse({
+#             "policies": policies_data,
+#             "ai_analysis": ai_answer,
+#             "category_chart_data": category_chart_data,
+#             "word_cloud_data": word_cloud_data
+#         })
+#
+#     except Exception as e:
+#         return JsonResponse({"error": f"服务器错误: {str(e)}"}, status=500)
 
 
 def load_custom_stopwords():
@@ -862,7 +863,8 @@ def load_custom_stopwords():
         "没有", "因为", "所以", "但是", "而且", "如果", "还是", "那么", "然后",
         "以及", "已经", "很多", "关于", "其中", "通过", "这种", "这种情况",
         "不同", "时候", "之后", "之前", "成为", "所有", "根据", "方面", "目前",
-        "什么", "如何", "是否", "以及", "那么", "由于", "发布"
+        "什么", "如何", "是否", "以及", "那么", "由于", "发布", "这些", "就是",
+        "古代"
     ]
 
 

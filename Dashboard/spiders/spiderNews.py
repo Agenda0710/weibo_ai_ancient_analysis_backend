@@ -80,7 +80,7 @@ def getContentData():
         params = {
             'uid': 2656274875,
             'page': i,
-            'q': '人工智能',
+            'q': '古代文化',
         }
         response = requests.get(url, headers=headers, params=params)
 
