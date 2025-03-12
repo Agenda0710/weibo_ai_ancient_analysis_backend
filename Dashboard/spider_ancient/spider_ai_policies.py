@@ -39,7 +39,7 @@ def get_ai_policies_information():
         params = {
             'sortType': 1,
             'p': j,
-            'q': '中国古代科学',
+            'q': '非物质文化遗产',
         }
 
         response = requests.get(url, headers=headers, params=params)
