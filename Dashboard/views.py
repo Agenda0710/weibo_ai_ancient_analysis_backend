@@ -20,6 +20,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import jieba
 import networkx as nx
 
+from .spider_ancient.spider_ancient_policies import get_ancient_policies_information
+
 
 # Create your views here.
 def get_article_statistics(request):
@@ -501,11 +503,11 @@ def get_data_views(request):
     # 返回表格数据
     comments_content = [
         comment for comment in
-        AiComments.objects.all().values_list('content', flat=True).order_by('created_at').reverse()
+        AncientComments.objects.all().values_list('content', flat=True).order_by('created_at').reverse()
         if comment and isinstance(comment, str)
     ]
     comments_region = list(
-        AiComments.objects.all().values_list('region', flat=True).order_by('created_at').reverse()
+        AncientComments.objects.all().values_list('region', flat=True).order_by('created_at').reverse()
     )
     comments_sentiments_analysis = analyze_article_sentiment(comments_content)
     comment_list = [
@@ -576,7 +578,7 @@ def get_data_views(request):
 
     # 返回翻牌器数据，统计微博文章和评论的数量
     article_count = AncientArticles.objects.count()
-    comment_count = AiComments.objects.count()
+    comment_count = AncientComments.objects.count()
 
     return JsonResponse({
         'comment_list': comment_list,
@@ -798,60 +800,60 @@ def weibo_search_analysis(request):
     return JsonResponse({"error": "Invalid request method"}, status=400)
 
 
-# def analyze_ai_policies(request):
-#     """
-#     获取人工智能相关政策，并分析，返回政策分类饼状图和词云数据
-#     """
-#     try:
-#         # 获取政策信息
-#         # policies_data = get_ai_policies_information()
-#
-#         # 生成分类统计数据（用于饼状图）
-#         categories = [policy["category"] for policy in policies_data]
-#         category_counts = Counter(categories)
-#         category_chart_data = [{"name": k, "value": v} for k, v in category_counts.items()]
-#
-#         # 调用 Flask 接口进行 AI 解读
-#         flask_url = "http://127.0.0.1:5000/analyze_ai_policies"
-#         ai_answer = "暂未生成ai模型解读"  # 默认值
-#
-#         try:
-#             response = requests.post(flask_url, json={"policies": policies_data})
-#             response.raise_for_status()
-#             response_data = response.json()
-#             ai_answer = response_data.get("ai_interpretation", "AI 解读生成失败")
-#         except requests.exceptions.RequestException as e:
-#             print(f"Flask 接口调用失败: {e}")  # 控制台打印错误信息
-#
-#         # 整理词云图数据
-#         stop_words = load_stopwords()
-#         stop_words.update(['的', '中共中央'])  # 添加更多停用词
-#         policies_title = [policy['title'] for policy in policies_data]
-#
-#         # 政策标题进行词频统计
-#         words = []
-#         for policy_title in policies_title:
-#             for word in jieba.cut(policy_title):
-#                 if word not in stop_words:
-#                     if re.match(r'[\u4e00-\u9fff]+', word):  # 只保留中文词
-#                         words.append(word)
-#
-#         word_counter = Counter(words)
-#
-#         # 只取前二十五条数据
-#         top_twenty_five = dict(word_counter.most_common(25))
-#         word_cloud_data = [{"name": word, "value": count} for word, count in top_twenty_five.items()]
-#
-#         # 返回数据
-#         return JsonResponse({
-#             "policies": policies_data,
-#             "ai_analysis": ai_answer,
-#             "category_chart_data": category_chart_data,
-#             "word_cloud_data": word_cloud_data
-#         })
-#
-#     except Exception as e:
-#         return JsonResponse({"error": f"服务器错误: {str(e)}"}, status=500)
+def analyze_ai_policies(request):
+    """
+    获取人工智能相关政策，并分析，返回政策分类饼状图和词云数据
+    """
+    try:
+        # 获取政策信息
+        policies_data = get_ancient_policies_information()
+
+        # 生成分类统计数据（用于饼状图）
+        categories = [policy["category"] for policy in policies_data]
+        category_counts = Counter(categories)
+        category_chart_data = [{"name": k, "value": v} for k, v in category_counts.items()]
+
+        # 调用 Flask 接口进行 AI 解读
+        flask_url = "http://127.0.0.1:5000/analyze_ai_policies"
+        ai_answer = "暂未生成ai模型解读"  # 默认值
+
+        try:
+            response = requests.post(flask_url, json={"policies": policies_data})
+            response.raise_for_status()
+            response_data = response.json()
+            ai_answer = response_data.get("ai_interpretation", "AI 解读生成失败")
+        except requests.exceptions.RequestException as e:
+            print(f"Flask 接口调用失败: {e}")  # 控制台打印错误信息
+
+        # 整理词云图数据
+        stop_words = load_stopwords()
+        stop_words.update(['的', '中共中央'])  # 添加更多停用词
+        policies_title = [policy['title'] for policy in policies_data]
+
+        # 政策标题进行词频统计
+        words = []
+        for policy_title in policies_title:
+            for word in jieba.cut(policy_title):
+                if word not in stop_words:
+                    if re.match(r'[\u4e00-\u9fff]+', word):  # 只保留中文词
+                        words.append(word)
+
+        word_counter = Counter(words)
+
+        # 只取前二十五条数据
+        top_twenty_five = dict(word_counter.most_common(25))
+        word_cloud_data = [{"name": word, "value": count} for word, count in top_twenty_five.items()]
+
+        # 返回数据
+        return JsonResponse({
+            "policies": policies_data,
+            "ai_analysis": ai_answer,
+            "category_chart_data": category_chart_data,
+            "word_cloud_data": word_cloud_data
+        })
+
+    except Exception as e:
+        return JsonResponse({"error": f"服务器错误: {str(e)}"}, status=500)
 
 
 def load_custom_stopwords():

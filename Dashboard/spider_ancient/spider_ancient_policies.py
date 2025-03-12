@@ -34,7 +34,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
 
-def get_ai_policies_information():
+def get_ancient_policies_information():
     for j in range(1, 5):
         params = {
             'sortType': 1,
@@ -73,4 +73,4 @@ def predict_category(text):
 
 
 if __name__ == '__main__':
-    get_ai_policies_information()
+    get_ancient_policies_information()
