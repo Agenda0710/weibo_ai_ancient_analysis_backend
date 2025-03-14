@@ -51,11 +51,11 @@ cd weibo_ai_ancient_analysis_backend
 ```  
 
 #### **2. 切换分支**  
-- **稳定版（`master`）**：  
+- **旧版（`master`）**：  
   ```bash  
   git checkout master  
   ```  
-- **开发版（`new_project`）**：  
+- **新版（`new_project`）**：  
   ```bash  
   git checkout new_project  
   ```  
