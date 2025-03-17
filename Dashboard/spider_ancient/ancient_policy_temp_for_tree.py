@@ -1,69 +1,84 @@
-import csv
 import requests
+import json
+import re
+from html import unescape
+from transformers import BertTokenizer, BertForSequenceClassification
+import torch
 
-headers = {
-    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
-    'athenaappname': '%E5%9B%BD%E7%BD%91%E6%90%9C%E7%B4%A2',
-    'athenaappkey': 'gnFvwq4i4EdIs6HsXe%2FNUNgmsf%2Fqf8AfCR5FsTfrxPzKnTnNJfaNqgxscibjY8aOG5mTCwXelZ9QWhFofNklU5Gbj0jAtIIsvKZDJy2YPXr8FfGQ%2BC%2B%2FaL6J%2F7ehImM1ZW97aVVqJO8XnoD0e4NUzeL1cQogXInl46PbGB7AJrs%3D'
-}
+def get_ancient_policies_information():
+    # 目标 URL
+    url = "https://sousuoht.www.gov.cn/athena/forward/2B22E8E39E850E17F95A016A74FCB6B673336FA8B6FEC0E2955907EF9AEE06BE"
 
-url = 'https://sousuoht.www.gov.cn/athena/forward/2A40CF891850CF7ED2F0FA6369ECBB88?t=zhengce_zy_gw&timetype=timezd&mintime=&maxtime=2025-03-12&pcodeJiguan=&puborg=&pcodeYear=&pcodeNum=&filetype=&n=5&sort=score'
+    # 构造请求头
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+        "athenaappkey": "Ij5L46bQ58IcxCxEe1JKr4p%2Fi29s8fMG%2F8u81yzHrHebMSWvbgJ3glQyn2mimSXUMIZnIRgo4PnLM6M%2FVfsXU5%2FHbE9%2F3KWhUY5pFmgHe84%2FWfdlHpKzRmy%2BNYwb35VAPJf0%2BpoPo1yEvtOhF7jJK2l8DvYL28NTxV5QLbHrub0%3D",
+        "athenaappname": "%E5%9B%BD%E7%BD%91%E6%90%9C%E7%B4%A2",
+    }
 
-policies_information = []
+    # 构造请求参数
+    payload = {
+        "code": "17da70961a7",
+        "historySearchWords": ["非物质文化遗产", "非物质文化", "大模型"],
+        "dataTypeId": "14",
+        "orderBy": "time",
+        "searchBy": "title",
+        "appendixType": "",
+        "granularity": "ALL",
+        "trackTotalHits": True,
+        "beginDateTime": "",
+        "endDateTime": "",
+        "isSearchForced": 0,
+        "filters": [],
+        "pageNo": 1,
+        "pageSize": 50,
+        "customFilter": {"operator": "and", "properties": []},
+        "searchWord": "非物质文化遗产"
+    }
 
-
-def get_ai_policies_information():
-    for j in range(1, 10):
-        params = {
-            "q": '文化',
-            "searchfield": "title",
-            "p": j,
-        }
-
-        response = requests.get(url, headers=headers, params=params)
-        response.encoding = 'utf-8'
+    # 发送 POST 请求
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    # 解析响应
+    if response.status_code == 200:
         try:
             data = response.json()
-            # 打印返回的数据结构，方便调试
-            data_list = data.get('result', {}).get('data', {}).get('searchVO', {}).get('catMap', {}).get('gongwen', {}).get('listVO', [])
-            for item in data_list:
-                time = item.get('pubtimeStr')
-                title = item.get('title')
-                if time and title:
-                    policies_information.append({'time': time, 'title': title})
-        except (KeyError, ValueError):
-            print(f"请求第 {j} 页时出现错误，响应内容: {response.text}")
+            policies_information = []  # 最终存储结果的列表
+            seen = set()  # 用于记录已经出现过的信息
 
-    return policies_information
+            for item in data["result"]["data"]["middle"]["list"]:
+                # 1. 清洗标题（去除HTML标签）
+                cleaned_title = re.sub(r"<[^>]+>", "", unescape(item["title"]))
 
+                # 2. 提取日期（只保留年月日）
+                date = item["time"].split()[0]  # 从"2025-03-17 17:24:00"提取"2025-03-17"
 
-def save_to_csv(data, filename='policies_information.csv'):
-    """
-    将数据保存为 CSV 文件
-    :param data: 数据列表，每个元素是一个字典
-    :param filename: 输出的 CSV 文件名
-    """
-    # 定义 CSV 文件的列名
-    fieldnames = ['time', 'title']
+                # 生成唯一标识
+                unique_key = (date, cleaned_title)
 
-    # 写入 CSV 文件
-    with open(filename, mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
+                if unique_key not in seen:
+                    # 3. 构建字典并添加到列表（分类暂时留空）
+                    policies_information.append({
+                        "time": date,
+                        "title": cleaned_title,
+                    })
+                    seen.add(unique_key)
 
-        # 写入表头
-        writer.writeheader()
+            for info in policies_information:
+                print(f"日期：{info['time']}")
+                print(f"标题：{info['title']}")
+                print("-" * 40)
 
-        # 写入数据
-        writer.writerows(data)
+            return policies_information
+
+        except (KeyError, json.JSONDecodeError) as e:
+            print(f"解析响应失败：{str(e)}")
+            print("原始响应内容：")
+            print(response.text)
+    else:
+        print(f"请求失败，状态码：{response.status_code}")
+        print(f"响应内容：{response.text}")
 
 
 if __name__ == '__main__':
-    # 获取政策信息
-    result_list = get_ai_policies_information()
-
-    # 打印结果
-    print(result_list)
-
-    # 将结果保存为 CSV 文件
-    save_to_csv(result_list)
-    print("数据已成功保存为 CSV 文件！")
+    get_ancient_policies_information()
