@@ -800,9 +800,9 @@ def weibo_search_analysis(request):
     return JsonResponse({"error": "Invalid request method"}, status=400)
 
 
-def analyze_ai_policies(request):
+def analyze_ancient_policies(request):
     """
-    获取人工智能相关政策，并分析，返回政策分类饼状图和词云数据
+    获取非物质文化遗产相关政策，并分析，返回政策分类饼状图和词云数据
     """
     try:
         # 获取政策信息
