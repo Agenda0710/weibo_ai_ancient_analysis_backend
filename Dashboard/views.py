@@ -1,5 +1,4 @@
 import json
-
 from django.core.paginator import Paginator
 from django.db.models.functions import Cast
 from django.views.decorators.csrf import csrf_exempt
@@ -19,8 +18,14 @@ from Dashboard.spiders.spiderSearch import get_weibo_search_text, get_weibo_sear
 from sklearn.feature_extraction.text import TfidfVectorizer
 import jieba
 import networkx as nx
-
 from .spider_ancient.spider_ancient_policies import get_ancient_policies_information
+from rest_framework import viewsets, serializers
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.http import FileResponse
+from .models import AncientTech
+import os
+from django.conf import settings
 
 
 # Create your views here.
@@ -961,3 +966,47 @@ def get_tech_hotspot_graph(request):
     graph_data = generate_network_data(co_occurrence_graph)
 
     return JsonResponse(graph_data)
+
+
+class AncientTechSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AncientTech
+        fields = '__all__'
+
+
+@csrf_exempt
+def tech_list(request):
+    if request.method == 'GET':
+        era = request.GET.get('era', 'all')
+
+        era_ranges = {
+            'all': (-3000, 2023),
+            'pre_qin': (-2070, -221),
+            'han_tang': (-206, 907),
+            'song_yuan': (960, 1368),
+            'ming_qing': (1368, 1912),
+            'modern': (1912, 2023)
+        }
+
+        min_year, max_year = era_ranges.get(era, (-3000, 2023))
+        techs = AncientTech.objects.filter(
+            ancient_year__gte=min_year,
+            ancient_year__lte=max_year
+        )
+
+        # 构建响应数据
+        data = []
+        for tech in techs:
+
+            data.append({
+                'id': tech.id,
+                'name': tech.name,
+                'ancient_year': tech.ancient_year,
+                'category': tech.category,
+                'ancient_desc': tech.ancient_desc,
+                'modern_desc': tech.modern_desc,
+                'ancient_model': request.build_absolute_uri(tech.ancient_model.url),
+                'modern_model': request.build_absolute_uri(tech.modern_model.url)
+            })
+
+        return JsonResponse(data, safe=False)

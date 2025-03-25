@@ -150,3 +150,16 @@ class WordFrequencyAncient(models.Model):
     class Meta:
         managed = False
         db_table = 'word_frequency_ancient'
+
+
+class AncientTech(models.Model):
+    name = models.CharField(max_length=100)
+    ancient_year = models.IntegerField()
+    ancient_desc = models.TextField()
+    ancient_model = models.FileField(upload_to='D:/PythonProjects/weibo_django/media/tech_models/')
+    modern_model = models.FileField(upload_to='D:/PythonProjects/weibo_django/media/tech_models/')
+    modern_desc = models.TextField()
+    category = models.CharField(max_length=50)
+
+    class Meta:
+        db_table = 'ancient_technology'
