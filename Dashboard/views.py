@@ -74,7 +74,7 @@ def get_article_statistics(request):
     usernames = AncientArticles.objects.values_list('authorname', flat=True)
 
     # 定义要删除的高频词列表
-    stop_words = ('人', '我')
+    stop_words = load_stopwords()
 
     # 对用户名进行分词并统计词频
     words = []
