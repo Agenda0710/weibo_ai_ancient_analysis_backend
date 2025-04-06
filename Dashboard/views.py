@@ -4,28 +4,18 @@ from django.db.models.functions import Cast
 from django.views.decorators.csrf import csrf_exempt
 from .models import *
 from django.http import JsonResponse
-from django.db.models import Count, Max
-from collections import Counter, defaultdict
+from django.db.models import Count
+from collections import defaultdict
 from Dashboard.utils.sentimentAnalysis import *
 from Dashboard.spiders.spiderNews import *
 from transformers import BertTokenizer, BertForSequenceClassification
 import torch
-from Dashboard.spiders.main import main as CollectData
-from Dashboard.learning_model.main import first_step as GetWordFrequency
 from Dashboard.spiders.spiderHotSearch import get_hot_search_data as HotSearchData
-from Dashboard.spiders.spiderSearch import get_weibo_search_text, get_weibo_search_hot_query
-# from .spider_ai.spider_ai_policies import get_ai_policies_information
+from Dashboard.spider_ancient.spider_ancient_search import get_weibo_search_text, get_weibo_search_hot_query
 from sklearn.feature_extraction.text import TfidfVectorizer
 import jieba
 import networkx as nx
 from .spider_ancient.spider_ancient_policies import get_ancient_policies_information
-from rest_framework import viewsets, serializers
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from django.http import FileResponse
-from .models import AncientTech
-import os
-from django.conf import settings
 
 
 # Create your views here.
@@ -596,8 +586,10 @@ def get_data_views(request):
     })
 
 
+# 获取当前项目根目录
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # 加载保存的模型和分词器
-model_path = r"D:\PythonProjects\weibo_django\Dashboard\fine_tuned_bert_fake_news"
+model_path = os.path.join(BASE_DIR, "fine_tuned_bert_fake_news")
 tokenizer = BertTokenizer.from_pretrained(model_path)
 model = BertForSequenceClassification.from_pretrained(model_path)
 model.eval()  # 设置为评估模式
@@ -637,36 +629,14 @@ def predict_fake_or_real(request):
     return JsonResponse({"error": "仅支持 POST 请求！"}, status=405)
 
 
-@csrf_exempt
-def auto_data_collection(request):
-    """
-    爬虫自动化
-    :param request:
-    :return:
-    """
-    if request.method == "POST":
-        data = json.loads(request.body)
-        # 获取爬取类型的数量
-        type_num = data.get("type_num", '')
-        # 获取爬取文章页面的页数
-        page_num = data.get("page_num", '')
-
-        # 进行数据采集
-        CollectData(type_num, page_num)
-        # 进行词频分析
-        GetWordFrequency()
-
-        return JsonResponse({"success": True}, status=200)
-
-    return JsonResponse({"error": "仅支持 POST 请求！"}, status=405)
-
-
 # 加载模型和 Tokenizer
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-fraud_detection_tokenizer = BertTokenizer.from_pretrained('Dashboard/bert-fraud-detection')
-fraud_detection_model = BertForSequenceClassification.from_pretrained('Dashboard/bert-fraud-detection').to(device)
-fraud_category_tokenizer = BertTokenizer.from_pretrained('Dashboard/bert-fraud-category')
-fraud_category_model = BertForSequenceClassification.from_pretrained('Dashboard/bert-fraud-category').to(device)
+fraud_detection_tokenizer = BertTokenizer.from_pretrained(os.path.join(BASE_DIR, 'bert-fraud-detection'))
+fraud_detection_model = BertForSequenceClassification.from_pretrained(
+    os.path.join(BASE_DIR, 'bert-fraud-detection')).to(device)
+fraud_category_tokenizer = BertTokenizer.from_pretrained(os.path.join(BASE_DIR, 'bert-fraud-category'))
+fraud_category_model = BertForSequenceClassification.from_pretrained(os.path.join(BASE_DIR, 'bert-fraud-category')).to(
+    device)
 
 # 设置模型为评估模式
 fraud_detection_model.eval()
@@ -966,47 +936,3 @@ def get_tech_hotspot_graph(request):
     graph_data = generate_network_data(co_occurrence_graph)
 
     return JsonResponse(graph_data)
-
-
-class AncientTechSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = AncientTech
-        fields = '__all__'
-
-
-@csrf_exempt
-def tech_list(request):
-    if request.method == 'GET':
-        era = request.GET.get('era', 'all')
-
-        era_ranges = {
-            'all': (-3000, 2023),
-            'pre_qin': (-2070, -221),
-            'han_tang': (-206, 907),
-            'song_yuan': (960, 1368),
-            'ming_qing': (1368, 1912),
-            'modern': (1912, 2023)
-        }
-
-        min_year, max_year = era_ranges.get(era, (-3000, 2023))
-        techs = AncientTech.objects.filter(
-            ancient_year__gte=min_year,
-            ancient_year__lte=max_year
-        )
-
-        # 构建响应数据
-        data = []
-        for tech in techs:
-
-            data.append({
-                'id': tech.id,
-                'name': tech.name,
-                'ancient_year': tech.ancient_year,
-                'category': tech.category,
-                'ancient_desc': tech.ancient_desc,
-                'modern_desc': tech.modern_desc,
-                'ancient_model': request.build_absolute_uri(tech.ancient_model.url),
-                'modern_model': request.build_absolute_uri(tech.modern_model.url)
-            })
-
-        return JsonResponse(data, safe=False)

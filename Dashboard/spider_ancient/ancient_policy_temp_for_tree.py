@@ -2,8 +2,6 @@ import requests
 import json
 import re
 from html import unescape
-from transformers import BertTokenizer, BertForSequenceClassification
-import torch
 
 def get_ancient_policies_information():
     # 目标 URL

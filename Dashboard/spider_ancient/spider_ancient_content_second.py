@@ -12,11 +12,15 @@ headers = {
 
 url = 'https://weibo.com/ajax/statuses/show?'
 
+# 获取当前脚本所在目录
+script_dir = os.path.dirname(os.path.abspath(__file__))
+# 定义CSV文件路径
+content_csv_path = os.path.join(script_dir, 'ancient_weibo_content.csv')
+
 
 def init():
-    if not os.path.exists(r'D:\PythonProjects\weibo_django\Dashboard\spider_ancient\ancient_weibo_content.csv'):
-        with open(r'D:\PythonProjects\weibo_django\Dashboard\spider_ancient\ancient_weibo_content.csv', 'w', newline='',
-                  encoding='utf-8') as f:
+    if not os.path.exists(content_csv_path):
+        with open(content_csv_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow([
                 'id',
@@ -34,12 +38,12 @@ def init():
 
 
 def write_row(row):
-    with open(r'D:\PythonProjects\weibo_django\Dashboard\spider_ancient\ancient_weibo_content.csv', 'a', newline='',
-              encoding='utf-8') as f:
+    with open(content_csv_path, 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(row)
 
 
+# 以下代码保持不变...
 def parse_json(response):
     id = response['id']
     likeNum = response['attitudes_count']

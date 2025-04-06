@@ -1,7 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
 import re
-from spider_ancient_content_second import start
 from Dashboard.config import WEIBO_COOKIE
 
 headers = {

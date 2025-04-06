@@ -1,14 +1,18 @@
+import os
 import jieba
-
 from Dashboard.separate_sentences.get_ancient_weibo_articles_and_comments_data import get_all_ancient_comments_data
 
 # 分词结果保存路径
-targetText = './cut_ancient_comments.txt'
+# 获取当前脚本所在的目录
+script_dir = os.path.dirname(os.path.abspath(__file__))
+print(script_dir)
+# 手动拼接路径
+targetText = os.path.join(script_dir, 'cut_ancient_comments.txt')
 
 
 def load_stopwords():
     """加载停用词列表"""
-    stopwords_path = './cn_stopwords.txt'
+    stopwords_path = os.path.join(script_dir, 'cn_stopwords.txt')
     with open(stopwords_path, 'r', encoding='utf-8') as f:
         return set(line.strip() for line in f if line.strip())
 

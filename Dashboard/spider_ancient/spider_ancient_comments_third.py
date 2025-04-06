@@ -5,11 +5,17 @@ import os
 import csv
 from Dashboard.config import WEIBO_COOKIE
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 定义文件路径
+comment_csv_path = os.path.join(script_dir, 'ancient_weibo_comment.csv')
+targetText = os.path.join(script_dir, 'cut_ancient_comments.txt')
+article_csv_path = os.path.join(script_dir, 'ancient_weibo_content.csv')
+
 
 def init():
-    if not os.path.exists(r'D:\PythonProjects\weibo_django\Dashboard\spider_ancient\ancient_weibo_comment.csv'):
-        with open(r'D:\PythonProjects\weibo_django\Dashboard\spider_ancient\ancient_weibo_comment.csv', 'w', newline='',
-                  encoding='utf-8') as f:
+    if not os.path.exists(comment_csv_path):
+        with open(comment_csv_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow([
                 'articleId',
@@ -25,8 +31,7 @@ def init():
 
 
 def writeRow(row):
-    with open(r'D:\PythonProjects\weibo_django\Dashboard\spider_ancient\ancient_weibo_comment.csv', 'a', newline='',
-              encoding='utf-8') as f:
+    with open(comment_csv_path, 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(row)
 
@@ -63,7 +68,7 @@ def getCommentData(url, params, retries=5, timeout=10):
 
 def getArticleList():
     articleList = []
-    with open(r'D:\PythonProjects\weibo_django\Dashboard\spider_ancient\ancient_weibo_content.csv', 'r', encoding='utf-8') as f:
+    with open(article_csv_path, 'r', encoding='utf-8') as f:
         reader = csv.reader(f)
         next(reader)
         for row in reader:
