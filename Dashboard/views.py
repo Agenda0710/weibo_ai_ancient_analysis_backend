@@ -6,12 +6,12 @@ from .models import *
 from django.http import JsonResponse
 from django.db.models import Count
 from collections import defaultdict
-from Dashboard.utils.sentimentAnalysis import *
-from Dashboard.spiders.spiderNews import *
+from .utils.sentimentAnalysis import *
+from .spiders.spiderNews import *
 from transformers import BertTokenizer, BertForSequenceClassification
 import torch
-from Dashboard.spiders.spiderHotSearch import get_hot_search_data as HotSearchData
-from Dashboard.spider_ancient.spider_ancient_search import get_weibo_search_text, get_weibo_search_hot_query
+from .spiders.spiderHotSearch import get_hot_search_data as HotSearchData
+from .spider_ancient.spider_ancient_search import get_weibo_search_text, get_weibo_search_hot_query
 from sklearn.feature_extraction.text import TfidfVectorizer
 import jieba
 import networkx as nx

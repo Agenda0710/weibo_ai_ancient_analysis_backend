@@ -4,7 +4,7 @@ from transformers import BertTokenizer
 from torch import nn
 from transformers import BertModel
 from datetime import datetime
-from Dashboard.config import WEIBO_COOKIE
+from ..config import WEIBO_COOKIE
 
 
 # 定义标签字典
