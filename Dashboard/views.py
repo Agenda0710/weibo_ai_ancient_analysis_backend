@@ -268,8 +268,8 @@ def article_analysis(request):
         'repost_counts': get_interval_count(articles, 'reposts_count', repost_intervals)
     }
 
-    # 缓存结果（10分钟过期）
-    r.setex(cache_key, 600, json.dumps(response_data))
+    # 缓存结果（5分钟过期）
+    r.setex(cache_key, 300, json.dumps(response_data))
     return JsonResponse(response_data)
 
 
@@ -304,8 +304,8 @@ def region_analysis(request):
         ]
     }
 
-    # 缓存结果（15分钟过期）
-    r.setex(cache_key, 900, json.dumps(response_data))
+    # 缓存结果（5分钟过期）
+    r.setex(cache_key, 300, json.dumps(response_data))
     return JsonResponse(response_data)
 
 
@@ -345,14 +345,9 @@ def comments_analysis(request):
         'word_data': word_data
     }
 
-    # 缓存结果（10分钟过期）
-    r.setex(cache_key, 600, json.dumps(result))
+    # 缓存结果（5分钟过期）
+    r.setex(cache_key, 300, json.dumps(result))
     return JsonResponse(result)
-
-
-# 缓存键名和过期时间（1小时）
-SENTIMENT_CACHE_KEY = "sentiment_analysis_result"
-CACHE_EXPIRE = 3600
 
 
 def sentiment_analysis(request):
@@ -361,8 +356,9 @@ def sentiment_analysis(request):
     :param request:
     :return:
     """
+    cache_key = "sentiment_analysis_result"
     # 检查缓存是否存在
-    cached_result = r.get(SENTIMENT_CACHE_KEY)
+    cached_result = r.get(cache_key)
     if cached_result:
         print("从缓存中获取情感分析结果")
         return JsonResponse(json.loads(cached_result))
@@ -422,7 +418,7 @@ def sentiment_analysis(request):
     }
 
     # 将结果存入Redis缓存
-    r.setex(SENTIMENT_CACHE_KEY, CACHE_EXPIRE, json.dumps(result))
+    r.setex(cache_key, 300, json.dumps(result))
 
     print(f"情感分析计算完成，耗时: {time.time() - start_time:.2f}秒")
 
@@ -520,10 +516,16 @@ def get_current_news(request):
 
 def get_data_views(request):
     """
-    数据大屏的数据展示
-    :param request:
-    :return:
+    数据大屏的数据展示（带Redis缓存）
     """
+    # 创建缓存键
+    cache_key = "data_views"
+
+    # 检查是否有缓存
+    cached_data = r.get(cache_key)
+    if cached_data:
+        return JsonResponse(json.loads(cached_data))
+
     # 返回表格数据
     comments_content = [
         comment for comment in
@@ -543,28 +545,40 @@ def get_data_views(request):
         for comment, sentiment, region in zip(comments_content, comments_sentiments_analysis, comments_region)
     ]
 
-    # 返回饼图数据
-    # 获取不同文章长度的占比
-    # 定义文章长度的区间
-    ranges = [
-        (0, 100),
-        (100, 200),
-        (200, 500),
-        (500, 1000),
-        (1000, 2000),
-    ]
-
+    # 返回饼图数据 - 文章长度分布
+    ranges = [(0, 100), (100, 200), (200, 500), (500, 1000), (1000, 2000)]
     ai_article_word_length_list = []
-    for r in ranges:
-        count = AncientArticles.objects.filter(contentlength__gte=r[0], contentlength__lt=r[1]).count()
-        ai_article_word_length_list.append({"value": count, "name": f"{r[0]}-{r[1]}"})
 
-    # 查询大于2000的文章数量
-    count_2000_plus = AncientArticles.objects.filter(contentlength__gte=2000).count()
-    ai_article_word_length_list.append({"value": count_2000_plus, "name": "2000+"})
+    # 使用缓存获取文章长度分布数据
+    length_cache_key = "article_length_distribution"
+    length_cached_data = r.get(length_cache_key)
 
-    # 排名图
-    news_data_analysis = getContentData()
+    if length_cached_data:
+        ai_article_word_length_list = json.loads(length_cached_data)
+    else:
+        for rng in ranges:
+            count = AncientArticles.objects.filter(contentlength__gte=rng[0], contentlength__lt=rng[1]).count()
+            ai_article_word_length_list.append({"value": count, "name": f"{rng[0]}-{rng[1]}"})
+
+        # 查询大于2000的文章数量
+        count_2000_plus = AncientArticles.objects.filter(contentlength__gte=2000).count()
+        ai_article_word_length_list.append({"value": count_2000_plus, "name": "2000+"})
+
+        # 缓存文章长度分布数据（5分钟）
+        r.setex(length_cache_key, 300, json.dumps(ai_article_word_length_list))
+
+    # 使用缓存获取微博数据
+    weibo_cache_key = "weibo_news_data"
+    weibo_cached_data = r.get(weibo_cache_key)
+
+    if weibo_cached_data:
+        news_data_analysis = json.loads(weibo_cached_data)
+    else:
+        # 爬取微博数据
+        news_data_analysis = getContentData()
+        # 缓存微博数据（30分钟）
+        r.setex(weibo_cache_key, 1800, json.dumps(news_data_analysis))
+
     # 修正新闻类别统计问题
     news_category_counts = Counter(item['label'] for item in news_data_analysis)
 
@@ -604,7 +618,8 @@ def get_data_views(request):
     article_count = AncientArticles.objects.count()
     comment_count = AncientComments.objects.count()
 
-    return JsonResponse({
+    # 准备响应数据
+    response_data = {
         'comment_list': comment_list,
         'article_type_list': ai_article_word_length_list,
         'news_category_counts': news_category_counts,
@@ -612,7 +627,12 @@ def get_data_views(request):
         'news_sentiments_statistic': news_sentiments_statistic,
         'article_count': article_count,
         'comment_count': comment_count,
-    })
+    }
+
+    # 缓存整个响应（5分钟）
+    r.setex(cache_key, 300, json.dumps(response_data))
+
+    return JsonResponse(response_data)
 
 
 # 获取当前项目根目录
@@ -949,8 +969,16 @@ def generate_network_data(graph):
 
 def get_tech_hotspot_graph(request):
     """
-    获取技术热点图谱数据
+    获取技术热点图谱数据（带Redis缓存）
     """
+    # 创建唯一的缓存键
+    cache_key = "tech_hotspot_graph"
+
+    # 检查是否有缓存
+    cached_data = r.get(cache_key)
+    if cached_data:
+        return JsonResponse(json.loads(cached_data))
+
     # 从数据库中获取文章内容
     articles = AncientArticles.objects.values_list('content', flat=True)
     texts = [article for article in articles if article and isinstance(article, str)]
@@ -963,5 +991,8 @@ def get_tech_hotspot_graph(request):
 
     # 生成图谱数据
     graph_data = generate_network_data(co_occurrence_graph)
+
+    # 将结果存入Redis缓存（5分钟过期）
+    r.setex(cache_key, 300, json.dumps(graph_data))
 
     return JsonResponse(graph_data)
