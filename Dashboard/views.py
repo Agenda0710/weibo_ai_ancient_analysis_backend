@@ -16,15 +16,24 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import jieba
 import networkx as nx
 from .spider_ancient.spider_ancient_policies import get_ancient_policies_information
-
+import redis
+import threading
+import time
 
 # Create your views here.
+# Redis连接配置
+r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+
 def get_article_statistics(request):
-    """
-    首页数据
-    :param request:
-    :return:
-    """
+    """首页数据 - 使用Redis缓存结果"""
+    cache_key = "article_statistics"
+    cached_data = r.get(cache_key)
+
+    # 如果缓存存在且有效，直接返回
+    if cached_data:
+        return JsonResponse(json.loads(cached_data))
+
     # 获取文章总数
     total_articles = AncientArticles.objects.count()
 
@@ -36,25 +45,21 @@ def get_article_statistics(request):
     top_cities = AncientArticles.objects.exclude(region__isnull=True).values('region').annotate(
         article_count=Count('id')).order_by('-article_count')[:2]
 
-    # 将 create_at 转换为日期，假设你的日期格式为 'YYYY-MM-DD'
+    # 将 create_at 转换为日期
     article_counts = AncientArticles.objects.annotate(
-        date=Cast('create_at', output_field=models.DateField())  # Cast 只能用于格式化正确的日期
+        date=Cast('create_at', output_field=models.DateField())
     ).values('date').annotate(count=Count('id')).order_by('date')
 
     # 获取不同文章长度的占比
-    # 定义文章长度的区间
     ranges = [
-        (0, 100),
-        (100, 200),
-        (200, 500),
-        (500, 1000),
-        (1000, 2000),
+        (0, 100), (100, 200), (200, 500),
+        (500, 1000), (1000, 2000)
     ]
 
     ai_article_word_length_list = []
-    for r in ranges:
-        count = AncientArticles.objects.filter(contentlength__gte=r[0], contentlength__lt=r[1]).count()
-        ai_article_word_length_list.append({"value": count, "name": f"{r[0]}-{r[1]}"})
+    for rng in ranges:
+        count = AncientArticles.objects.filter(contentlength__gte=rng[0], contentlength__lt=rng[1]).count()
+        ai_article_word_length_list.append({"value": count, "name": f"{rng[0]}-{rng[1]}"})
 
     # 查询大于2000的文章数量
     count_2000_plus = AncientArticles.objects.filter(contentlength__gte=2000).count()
@@ -70,39 +75,23 @@ def get_article_statistics(request):
     words = []
     for username in usernames:
         for word in jieba.cut(username):
-            if word not in stop_words:
-                # 使用正则表达式判断是否为中文，中文的Unicode编码范围是[\u4e00-\u9fff]
-                if re.match(r'[\u4e00-\u9fff]+', word):
-                    words.append(word)
+            if word not in stop_words and re.match(r'[\u4e00-\u9fff]+', word):
+                words.append(word)
 
     # 对词语进行统计
     word_counts = Counter(words)
-
-    # 只取前十五条数据
     top_fifteen = dict(word_counts.most_common(15))
-
-    # 准备词云图数据，转换成字典数据
     wordcloud_data = [{'name': word, 'value': count} for word, count in top_fifteen.items()]
 
     # 准备数据
     dates = [item['date'].strftime('%Y-%m-%d') for item in article_counts]
     counts = [item['count'] for item in article_counts]
-
-    if top_cities:
-        top_city_name = top_cities[0]['region']
-    else:
-        top_city_name = None
-
-    # 如果第一名是 null，取第二名
-    if top_city_name is None and len(top_cities) > 1:
-        top_city_name = top_cities[1]['region']
+    top_city_name = top_cities[1]['region'] if top_cities and not top_cities[0]['region'] else top_cities[0][
+        'region'] if top_cities else None
 
     # 获取点赞量最多的前四条评论
-    top_comments_list = AncientComments.objects.order_by('-like_counts')[:4].values('authorname', 'content',
-                                                                                    'like_counts')
-
-    # 将 QuerySet 转换为列表
-    top_comments_list = list(top_comments_list)
+    top_comments_list = list(AncientComments.objects.order_by('-like_counts')[:4].values(
+        'authorname', 'content', 'like_counts'))
 
     data = {
         'total_articles': total_articles,
@@ -115,31 +104,39 @@ def get_article_statistics(request):
         'wordcloud_data': wordcloud_data,
     }
 
+    # 缓存结果（5分钟过期）
+    r.setex(cache_key, 300, json.dumps(data))
     return JsonResponse(data)
 
 
 def get_hot_words_statistics(request):
     """
-    获取评论热词数据
-    :param request:
-    :return:
+    获取评论热词数据（带Redis缓存）
     """
+    # 生成唯一的缓存键
+    cache_key = f"hot_words:{request.GET.get('selectedWord','')}:{request.GET.get('page',1)}"
+
+    # 检查缓存
+    cached_data = r.get(cache_key)
+    if cached_data:
+        return JsonResponse(json.loads(cached_data))
+
+    # 获取词频数据
     word_frequency_data = WordFrequencyAncient.objects.all()
+    hot_words_list = []
 
     # 处理词频数据并进行情感分析
-    hot_words_list = []
     for word_frequency in word_frequency_data:
         word = word_frequency.word
         frequency = word_frequency.frequency
-        sentiment_score = SnowNLP(word).sentiments
 
-        # 确定情感类型
-        if sentiment_score > 0.6:
-            sentiment = "正面"
-        elif sentiment_score < 0.4:
-            sentiment = "负面"
-        else:
-            sentiment = "中性"
+        # 简单情感分析
+        sentiment = "中性"  # 默认值
+        try:
+            sentiment_score = SnowNLP(word).sentiments
+            sentiment = "正面" if sentiment_score > 0.6 else "负面" if sentiment_score < 0.4 else "中性"
+        except:
+            pass
 
         hot_words_list.append({
             'word': word,
@@ -147,45 +144,54 @@ def get_hot_words_statistics(request):
             'sentiment': sentiment,
         })
 
-        # 处理分页查询
-        selected_word = request.GET.get('selectedWord', '')
-        page = request.GET.get('page', 1)  # 获取当前页码，默认第1页
-        page_size = request.GET.get('pageSize', 10)  # 每页显示多少数据，默认10条
+    # 处理分页查询
+    selected_word = request.GET.get('selectedWord', '')
+    page = int(request.GET.get('page', 1))
+    page_size = int(request.GET.get('pageSize', 10))
 
-        # 查询评论内容中包含 selectedWord 的评论
-        comments_query = AncientComments.objects.filter(content__icontains=selected_word)
-        # 分页处理
-        paginator = Paginator(comments_query, page_size)
-        comments_page = paginator.get_page(page)
+    comments_query = AncientComments.objects.filter(content__icontains=selected_word)
+    paginator = Paginator(comments_query, page_size)
+    comments_page = paginator.get_page(page)
 
-        # 将查询结果转换为字典列表，方便返回前端
-        comments_list = [{
-            'articleId': comment.articleid,
-            'authorName': comment.authorname,
-            'authorGender': comment.authorgender,
-            'authorAddress': comment.authoraddress,
-            'content': comment.content,
-            'like_counts': comment.like_counts,
-        } for comment in comments_page]
+    comments_list = [{
+        'articleId': comment.articleid,
+        'authorName': comment.authorname,
+        'authorGender': comment.authorgender,
+        'authorAddress': comment.authoraddress,
+        'content': comment.content,
+        'like_counts': comment.like_counts,
+    } for comment in comments_page]
 
-    # 返回 JSON 响应
-    return JsonResponse({'hot_words_data': hot_words_list,
-                         'total': paginator.count,
-                         'currentPage': comments_page.number,
-                         'pageSize': paginator.per_page,
-                         'allComments': comments_list
-                         })
+    response_data = {
+        'hot_words_data': hot_words_list,
+        'total': paginator.count,
+        'currentPage': page,
+        'pageSize': page_size,
+        'allComments': comments_list
+    }
+
+    # 缓存结果（5分钟过期）
+    r.setex(cache_key, 300, json.dumps(response_data))
+    return JsonResponse(response_data)
 
 
 def get_articles_with_comments(request):
     """
-    文章数据展示
+    文章数据展示（带Redis缓存）
     :param request:
     :return:
     """
     # 获取分页参数
     page = request.GET.get('page', 1)  # 默认为第一页
     page_size = request.GET.get('page_size', 6)  # 默认为每页6条数据
+
+    # 创建唯一的缓存键
+    cache_key = f"articles_with_comments:{page}:{page_size}"
+
+    # 检查是否有缓存
+    cached_data = r.get(cache_key)
+    if cached_data:
+        return JsonResponse(json.loads(cached_data))
 
     # 获取所有文章并计算评论量
     articles = AncientArticles.objects.annotate(comment_count=Count('commentnum'))
@@ -209,27 +215,36 @@ def get_articles_with_comments(request):
             'detailUrl': article.detailurl,  # 文章详情页
         })
 
+    # 进行情感分析
     words = [item['content'] for item in results]
     sentiments = analyze_article_sentiment(words)
 
+    # 将情感分析结果添加到结果中
     for index, sentiment in enumerate(sentiments):
         results[index]['judge'] = sentiment
 
-    # 返回分页结果和总条数
-    return JsonResponse({
+    # 准备响应数据
+    response_data = {
         'data': results,
         'total': paginator.count,
         'num_pages': paginator.num_pages,
         'current_page': paginated_articles.number
-    })
+    }
+
+    # 将结果存入Redis缓存（5分钟过期）
+    r.setex(cache_key, 300, json.dumps(response_data))
+
+    return JsonResponse(response_data)
 
 
 def article_analysis(request):
-    """
-    文章内容分析
-    :param request:
-    :return:
-    """
+    """文章内容分析 - 使用Redis缓存结果"""
+    cache_key = "article_analysis"
+    cached_data = r.get(cache_key)
+
+    if cached_data:
+        return JsonResponse(json.loads(cached_data))
+
     articles = AncientArticles.objects.all()
 
     # 定义统计区间
@@ -237,7 +252,6 @@ def article_analysis(request):
     comment_intervals = [(0, 100), (100, 200), (200, 300), (300, 500), (500, float('inf'))]
     repost_intervals = [(0, 100), (100, 200), (200, 300), (300, 500), (500, float('inf'))]
 
-    # 统计点赞量、评论量、转发量
     def get_interval_count(articles, field, intervals):
         interval_count = defaultdict(int)
         for article in articles:
@@ -248,78 +262,70 @@ def article_analysis(request):
                     break
         return interval_count
 
-    like_counts = get_interval_count(articles, 'likenum', like_intervals)
-    comment_counts = get_interval_count(articles, 'commentnum', comment_intervals)
-    repost_counts = get_interval_count(articles, 'reposts_count', repost_intervals)
+    response_data = {
+        'like_counts': get_interval_count(articles, 'likenum', like_intervals),
+        'comment_counts': get_interval_count(articles, 'commentnum', comment_intervals),
+        'repost_counts': get_interval_count(articles, 'reposts_count', repost_intervals)
+    }
 
-    # 返回类型列表
-    return JsonResponse({
-        'like_counts': like_counts,
-        'comment_counts': comment_counts,
-        'repost_counts': repost_counts})
+    # 缓存结果（10分钟过期）
+    r.setex(cache_key, 600, json.dumps(response_data))
+    return JsonResponse(response_data)
 
 
 def region_analysis(request):
-    """
-    ip地址分析
-    :param request:
-    :return:
-    """
-    # 统计每个地区的文章数
+    """IP地址分析 - 使用Redis缓存结果"""
+    cache_key = "region_analysis"
+    cached_data = r.get(cache_key)
+
+    if cached_data:
+        return JsonResponse(json.loads(cached_data))
+
     article_counts = (
-        AncientArticles.objects.values('region')  # 以地区分组
-        .annotate(article_count=Count('id'))  # 统计每个地区的文章数
-        .order_by('region')  # 排序
+        AncientArticles.objects.values('region')
+        .annotate(article_count=Count('id'))
+        .order_by('region')
     )
 
-    # 统计每个地区的评论数
     comment_counts = (
-        AncientComments.objects.values('region')  # 以地区分组
-        .annotate(comment_count=Count('articleid'))  # 统计每个地区的评论数
-        .order_by('region')  # 排序
+        AncientComments.objects.values('region')
+        .annotate(comment_count=Count('articleid'))
+        .order_by('region')
     )
 
-    # 将结果组合成一个列表，以便返回给前端
-    article_data_list = [
-        {'region': item['region'], 'article_count': item['article_count']}
-        for item in article_counts
-    ]
+    response_data = {
+        'articleDataList': [
+            {'region': item['region'], 'article_count': item['article_count']}
+            for item in article_counts
+        ],
+        'commentDataList': [
+            {'region': item['region'], 'comment_count': item['comment_count']}
+            for item in comment_counts
+        ]
+    }
 
-    comment_data_list = [
-        {'region': item['region'], 'comment_count': item['comment_count']}
-        for item in comment_counts
-    ]
-
-    # 返回给前端的 JSON 数据
-    return JsonResponse({
-        'articleDataList': article_data_list,
-        'commentDataList': comment_data_list
-    })
+    # 缓存结果（15分钟过期）
+    r.setex(cache_key, 900, json.dumps(response_data))
+    return JsonResponse(response_data)
 
 
 def comments_analysis(request):
-    """
-    评论分析
-    :param request:
-    :return:
-    """
-    # 定义点赞数区间为每 20 个一组
-    interval = 20
+    """评论分析 - 使用Redis缓存结果"""
+    cache_key = "comments_analysis"
+    cached_data = r.get(cache_key)
 
-    # 统计每个区间的评论数
+    if cached_data:
+        return JsonResponse(json.loads(cached_data))
+
+    interval = 20
     like_bins = AncientComments.objects.values('like_counts').annotate(count=Count('id'))
 
-    # 整理数据到区间中
     bins = {}
     for item in like_bins:
-        like_count = item['like_counts'] if item['like_counts'] is not None else 0
+        like_count = item['like_counts'] or 0
         bin_index = (like_count // interval) * interval
-        if bin_index in bins:
-            bins[bin_index] += item['count']
-        else:
-            bins[bin_index] = item['count']
+        bins[bin_index] = bins.get(bin_index, 0) + item['count']
 
-    # 构建前端需要的数据格式
     response_data = []
     for bin_start, count in sorted(bins.items()):
         response_data.append({
@@ -327,27 +333,43 @@ def comments_analysis(request):
             'comment_count': count
         })
 
-    # 性别数据
     gender_counts = AncientComments.objects.values_list('authorgender', flat=True)
     gender_counter = Counter(gender_counts)
 
-    # 获取词频数据
     word_frequencies = WordFrequencyAncient.objects.all().values('word', 'frequency')
     word_data = [{'name': wf['word'], 'value': wf['frequency']} for wf in word_frequencies[:35]]
 
-    return JsonResponse({
+    result = {
         'data': response_data,
         'gender_data': [{'name': gender, 'value': count} for gender, count in gender_counter.items()],
         'word_data': word_data
-    })
+    }
+
+    # 缓存结果（10分钟过期）
+    r.setex(cache_key, 600, json.dumps(result))
+    return JsonResponse(result)
+
+
+# 缓存键名和过期时间（1小时）
+SENTIMENT_CACHE_KEY = "sentiment_analysis_result"
+CACHE_EXPIRE = 3600
 
 
 def sentiment_analysis(request):
     """
-    文章内容+评论的情感分析
+    文章内容+评论的情感分析（带Redis缓存）
     :param request:
     :return:
     """
+    # 检查缓存是否存在
+    cached_result = r.get(SENTIMENT_CACHE_KEY)
+    if cached_result:
+        print("从缓存中获取情感分析结果")
+        return JsonResponse(json.loads(cached_result))
+
+    print("计算新的情感分析结果...")
+    start_time = time.time()
+
     # 获取所有文章内容和评论内容
     articles = [article for article in AncientArticles.objects.all().values_list('content', flat=True) if
                 article and isinstance(article, str)]
@@ -383,8 +405,8 @@ def sentiment_analysis(request):
 
     keywords_sentiment = analyze_sentiment(all_words)
 
-    # 返回结果
-    return JsonResponse({
+    # 构建结果
+    result = {
         'top_keywords': top_keywords,
         'article_sentiment': {
             'positive': article_positive_count,
@@ -397,7 +419,14 @@ def sentiment_analysis(request):
             'negative': comment_negative_count
         },
         'keywords_sentiment': keywords_sentiment
-    })
+    }
+
+    # 将结果存入Redis缓存
+    r.setex(SENTIMENT_CACHE_KEY, CACHE_EXPIRE, json.dumps(result))
+
+    print(f"情感分析计算完成，耗时: {time.time() - start_time:.2f}秒")
+
+    return JsonResponse(result)
 
 
 def article_content_word_cloud(request):
