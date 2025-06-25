@@ -19,6 +19,9 @@ from .spider_ancient.spider_ancient_policies import get_ancient_policies_informa
 import redis
 import threading
 import time
+import uuid
+from django.core.cache import cache
+from django.views.decorators.http import require_http_methods
 
 # Create your views here.
 # Redis连接配置
@@ -350,79 +353,84 @@ def comments_analysis(request):
     return JsonResponse(result)
 
 
+@csrf_exempt
+@require_http_methods(["GET"])
 def sentiment_analysis(request):
     """
-    文章内容+评论的情感分析（带Redis缓存）
-    :param request:
-    :return:
+    文章内容+评论的情感分析（带Redis消息队列和缓存）
     """
-    cache_key = "sentiment_analysis_result"
-    # 检查缓存是否存在
-    cached_result = r.get(cache_key)
-    if cached_result:
-        print("从缓存中获取情感分析结果")
-        return JsonResponse(json.loads(cached_result))
+    # 先检查是否有最近的可用的缓存结果
+    cache_key_prefix = "sentiment_analysis_result_"
 
-    print("计算新的情感分析结果...")
-    start_time = time.time()
+    # 尝试获取最近的10个缓存键
+    recent_keys = cache.keys(f"{cache_key_prefix}*")
+    if recent_keys:
+        # 按时间倒序排序，获取最新的缓存
+        recent_keys.sort(reverse=True)
+        for key in recent_keys[:5]:  # 检查最新的5个缓存
+            cached_data = cache.get(key)
+            if cached_data and cached_data.get('status') == 'completed':
+                # 如果缓存未过期且是完成状态，直接返回
+                return JsonResponse({
+                    'status': 'completed',
+                    'result': cached_data['result'],
+                    'from_cache': True,
+                    'cached_time': cached_data.get('processed_time')
+                })
 
-    # 获取所有文章内容和评论内容
-    articles = [article for article in AncientArticles.objects.all().values_list('content', flat=True) if
-                article and isinstance(article, str)]
-    comments = [comment for comment in AncientComments.objects.all().values_list('content', flat=True) if
-                comment and isinstance(comment, str)]
+    # 没有可用缓存，创建新任务
+    task_id = str(uuid.uuid4())
+    cache_key = f"{cache_key_prefix}{task_id}"
 
-    stopwords = load_stopwords()
-
-    # 1. 获取文章热词分析（前十个词以及它们的频率）
-    top_keywords = get_top_keywords(articles, stopwords)
-
-    # 2. 统计文章内容的情感
-    article_sentiments = analyze_article_sentiment(list(articles))
-    article_positive_count = sum([1 for sentiment in article_sentiments if sentiment == "正面"])
-    article_neutral_count = sum([1 for sentiment in article_sentiments if sentiment == "中性"])
-    article_negative_count = sum([1 for sentiment in article_sentiments if sentiment == "负面"])
-
-    # 3. 统计评论内容的情感
-    comment_sentiments = analyze_article_sentiment(list(comments))
-    comment_positive_count = sum([1 for sentiment in comment_sentiments if sentiment == "正面"])
-    comment_neutral_count = sum([1 for sentiment in comment_sentiments if sentiment == "中性"])
-    comment_negative_count = sum([1 for sentiment in comment_sentiments if sentiment == "负面"])
-
-    # 4.统计热词的情感
-    all_words = []
-    for content in articles:
-        # 使用jieba进行分词
-        words = jieba.cut(content)
-        # 过滤掉停用词和单个字的词
-        filtered_words = [word for word in words if
-                          word not in stopwords and len(word) > 1 and re.match(r'^[\u4e00-\u9fa5]+$', word)]
-        all_words.extend(filtered_words)
-
-    keywords_sentiment = analyze_sentiment(all_words)
-
-    # 构建结果
-    result = {
-        'top_keywords': top_keywords,
-        'article_sentiment': {
-            'positive': article_positive_count,
-            'neutral': article_neutral_count,
-            'negative': article_negative_count
-        },
-        'comment_sentiment': {
-            'positive': comment_positive_count,
-            'neutral': comment_neutral_count,
-            'negative': comment_negative_count
-        },
-        'keywords_sentiment': keywords_sentiment
+    # 将任务放入Redis队列
+    task_data = {
+        'task_id': task_id,
+        'status': 'pending',
+        'result': None,
+        'created_time': time.time()
     }
 
-    # 将结果存入Redis缓存
-    r.setex(cache_key, 300, json.dumps(result))
+    # 设置任务状态为pending
+    cache.set(cache_key, task_data, timeout=600)
 
-    print(f"情感分析计算完成，耗时: {time.time() - start_time:.2f}秒")
+    # 将任务放入队列
+    r.lpush('sentiment_analysis_queue', json.dumps({
+        'task_id': task_id,
+        'cache_key': cache_key
+    }))
 
-    return JsonResponse(result)
+    return JsonResponse({
+        'status': 'queued',
+        'task_id': task_id,
+        'message': 'Task has been queued for processing'
+    }, status=202)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def check_sentiment_analysis_status(request, task_id):
+    """
+    检查情感分析任务状态
+    """
+    cache_key = f"sentiment_analysis_result_{task_id}"
+    task_data = cache.get(cache_key)
+
+    if not task_data:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Task not found or expired'
+        }, status=404)
+
+    if task_data['status'] == 'completed':
+        return JsonResponse({
+            'status': 'completed',
+            'result': task_data['result']
+        })
+    else:
+        return JsonResponse({
+            'status': task_data['status'],
+            'message': 'Task is still processing'
+        })
 
 
 def article_content_word_cloud(request):

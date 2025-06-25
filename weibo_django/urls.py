@@ -30,19 +30,20 @@ urlpatterns = [
     path('articleStatistics/', views.get_article_statistics, name='get_article_statistics'),
     # 获取评论热词数据
     path('hotWords/', views.get_hot_words_statistics, name='get_hot_words_statistics'),
-    # 获取第三页（ai相关的微博文章展示)
+    # 获取相关的微博文章展示
     path('articles/', views.get_articles_with_comments, name='articles_list'),
-    # 获取第四页（ai相关的微博文章，包含点赞量区间统计，评论量统计，转发量统计）
+    # 获取相关的微博文章，包含点赞量区间统计，评论量统计，转发量统计
     path('articleAnalysis/', views.article_analysis, name='article_analysis'),
-    # 获取第五页数据（ai相关的微博和评论的IP地址分析）
+    # 获取相关的微博和评论的IP地址分析
     path('regionAnalysis/', views.region_analysis, name='region_analysis'),
-    # 获取第六页数据（评论分析，点赞区间的评论数统计图，性别比例，词云图）
+    # 获取评论分析，点赞区间的评论数统计图，性别比例，词云图
     path('commentsAnalysis/', views.comments_analysis, name='comments_analysis'),
-    # 获取第七页数据（舆情分析，微博文章的关键词情感分析以及热词情感趋势的树形图，微博文章内容和评论的舆情趋势饼状图，热词TOP10展示）
+    # 舆情分析（异步任务接口）
     path('sentimentAnalysis/', views.sentiment_analysis, name='sentiment_analysis'),
-    # 获取第八页数据（微博文章词云图）
+    path('sentimentAnalysis/<str:task_id>/', views.check_sentiment_analysis_status, name='check_sentiment_status'),
+    # 获取文章词云图
     path('articleContentWordCloud/', views.article_content_word_cloud, name='article_content_word_cloud'),
-    # 获取第九页数据（当前热搜+ai模型解读热搜）
+    # 获取当前热搜+ai模型解读热搜
     path('getHotSearchData/', views.get_hot_search_data, name='get_hot_search_data'),
     # 获取第大模型数据（央视新闻）+新闻类别分类
     path('getCurrentNews/', views.get_current_news, name='get_current_news'),
