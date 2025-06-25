@@ -117,7 +117,7 @@ def get_hot_words_statistics(request):
     获取评论热词数据（带Redis缓存）
     """
     # 生成唯一的缓存键
-    cache_key = f"hot_words:{request.GET.get('selectedWord','')}:{request.GET.get('page',1)}"
+    cache_key = f"hot_words:{request.GET.get('selectedWord', '')}:{request.GET.get('page', 1)}"
 
     # 检查缓存
     cached_data = r.get(cache_key)
@@ -794,8 +794,16 @@ def weibo_search_analysis(request):
 
         try:
             # 获取微博文章和热点话题
-            weibo_articles = get_weibo_search_text(keyword)
-            hot_queries = get_weibo_search_hot_query(keyword)
+            try:
+                weibo_articles = get_weibo_search_text(keyword)
+                hot_queries = get_weibo_search_hot_query(keyword)
+            except Exception as e:
+                if "当前已有其他请求在处理相同关键词" in str(e):
+                    return JsonResponse({
+                        "status": "locked",
+                        "message": f"系统正在处理关键词'{keyword}'的搜索，请30秒后再试"
+                    }, status=423)  # 423 Locked
+                raise
 
             # 调用情感分析函数
             sentiments = analyze_article_sentiment(weibo_articles)

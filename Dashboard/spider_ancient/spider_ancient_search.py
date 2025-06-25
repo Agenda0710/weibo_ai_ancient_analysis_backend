@@ -1,12 +1,14 @@
 import re
 import requests
 from Dashboard.config import WEIBO_COOKIE
+import redis
 
 headers = {
     'Cookie': WEIBO_COOKIE,
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0',
 }
 
+r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 
 def clean_html_tags(text):
     """
@@ -35,38 +37,49 @@ def get_weibo_search_hot_query(q):
 def get_weibo_search_text(q):
     """
     根据关键词和页数范围，爬取微博搜索结果中的完整文本内容
-    :param q: 搜索关键词
-    :return: 包含提取并清理后的微博完整文本内容的列表
+    使用Redis分布式锁确保同一时间只有一个请求能执行爬取
     """
+    lock_key = f"weibo_crawler_lock:{q}"  # 基于关键词的锁
+    lock_timeout = 60  # 锁的超时时间(秒)
     all_texts = []
     base_url = 'https://s.weibo.com/weibo?'
 
-    for page in range(1, 11):
-        params = {
-            'q': q,
-            'nodup': 1,
-            'page': page,
-        }
+    # 尝试获取锁
+    acquired = r.set(lock_key, "locked", nx=True, ex=lock_timeout)
+    if not acquired:
+        print("当前已有其他请求在处理相同关键词的爬取，请稍后再试")
+        raise Exception("当前已有其他请求在处理相同关键词的爬取，请稍后再试")
 
-        try:
-            response = requests.get(base_url, headers=headers, params=params)
-            response.raise_for_status()  # 检查请求是否成功，若不成功则抛出异常
+    try:
+        for page in range(1, 11):
+            try:
+                # 每次循环检查锁是否仍然持有
+                if not r.exists(lock_key):
+                    print("锁已过期，爬取中断")
+                    raise Exception("锁已过期，爬取中断")
 
-            # 获取网页内容
-            html_content = response.text
+                # 刷新锁的过期时间
+                r.expire(lock_key, lock_timeout)
 
-            # 定义正则提取规则
-            full_text_pattern = re.compile(
-                r'<p class="txt" node-type="feed_list_content_full".*?>(.*?)<a href="javascript:void\(0\);"', re.S
-            )
+                # 爬取逻辑不变
+                params = {'q': q, 'nodup': 1, 'page': page}
+                response = requests.get(base_url, headers=headers, params=params)
+                response.raise_for_status()
 
-            # 提取完整文本
-            full_text_matches = full_text_pattern.findall(html_content)
-            full_texts = [clean_html_tags(text) for text in full_text_matches]
-            all_texts.extend(full_texts)
+                html_content = response.text
+                full_text_pattern = re.compile(
+                    r'<p class="txt" node-type="feed_list_content_full".*?>(.*?)<a href="javascript:void\(0\);"', re.S
+                )
+                full_text_matches = full_text_pattern.findall(html_content)
+                full_texts = [clean_html_tags(text) for text in full_text_matches]
+                all_texts.extend(full_texts)
 
-        except requests.RequestException as e:
-            print(f"请求第 {page} 页失败: {e}")
+            except requests.RequestException as e:
+                print(f"请求第 {page} 页失败: {e}")
+
+    finally:
+        # 确保最终释放锁
+        r.delete(lock_key)
 
     return all_texts
 
